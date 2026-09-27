@@ -37,6 +37,6 @@ python tools/package.py --work-dir /absolute/scratch/sapi --output-dir /absolute
 python tools/smoke_packages.py --work-dir /absolute/scratch/sapi --package-dir /absolute/path/dist
 ```
 
-검증 기록은 특정 소스·환경의 결과다. 새 구현을 registry에 추가하면 N×N 조합을 생성하며 케이스 수는 달라진다. CI는 Windows와 Ubuntu에서 동일한 시험·패키징·소비 검사를 실행하도록 구성했다. CI의 성공 여부는 실제 실행 결과로 확인해야 한다.
+검증 기록은 특정 소스·환경의 결과다. 새 구현을 registry에 추가하면 N×N 조합을 생성하며 케이스 수는 달라진다. 최초 소스 커밋 `4af623f`의 [Windows·Ubuntu CI](https://github.com/GNh0/SAPi/actions/runs/36299470368)도 시험·패키징·패키지 소비 단계까지 모두 통과했다. 이후 변경은 각 커밋의 CI 실행 결과로 판단한다. CI Actions는 현재 공식 릴리스의 커밋 SHA에 고정했다.
 
 이 기록은 독립 보안 감사, 퍼징, 부하·분산/재시작 내구성, 일반 브라우저 실행, Maven 빌드, 공개 레지스트리 게시, 아직 없는 SDK/프레임워크의 검증을 포함하지 않는다. 기본 메모리 재전송 저장소의 운영 제약과 PSK/전방향 비밀성 제약은 [SECURITY.md](../spec/SECURITY.md)를 따른다.
