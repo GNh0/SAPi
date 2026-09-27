@@ -1,10 +1,23 @@
 # 설치와 SDK 사용
 
-패키지 버전은 `0.1.0-alpha.3`(Python `0.1.0a3`)입니다. 공개 레지스트리 게시 없이 로컬 패키지로 설치합니다.
+패키지 버전은 `0.1.0-alpha.4`(Python `0.1.0a4`)입니다. 공개 레지스트리 게시 없이 로컬 패키지로 설치합니다.
+
+## 실행 환경
+
+| SDK | 최소 환경 |
+| --- | --- |
+| `SApi.Protocol` | .NET Framework 4.6.2, .NET Standard 2.0, .NET 6 |
+| `SApi.AspNet` | 클래식 ASP.NET / .NET Framework 4.6.2 |
+| `SApi.AspNetCore` | ASP.NET Core 6 |
+| Python | 3.9.2 이상, cryptography 50.0.1 이상 |
+| Java | Java 8, AES-256을 허용하는 암호화 정책 |
+| JavaScript | Node.js 16 이상 또는 Web Crypto 브라우저 |
+
+서비스 프로세스는 Python 3.10 이상에서 실행하며, 구버전 SDK는 동일한 HTTP(S) 메시지와 mTLS 상태 API로 연결합니다. 개발 언어의 웹 프레임워크를 서비스 런타임으로 바꿀 필요는 없습니다.
 
 ## 빌드
 
-Python 3.10+, .NET SDK 8+, Node.js 20+, JDK 11+를 사용합니다.
+Python 3.10+, .NET SDK 8+, Node.js 20+, JDK 11+를 빌드 도구로 사용합니다. 패키지 소비 검사를 위해 .NET 6·8 런타임도 설치합니다. Windows에서는 .NET Framework용 패키지도 소비 검사합니다.
 
 ```powershell
 $sapiWork = Join-Path $env:TEMP 'sapi-validation'
@@ -18,15 +31,16 @@ python tools/package.py --work-dir $sapiWork --output-dir "$PWD/dist"
 python tools/smoke_packages.py --work-dir $sapiWork --package-dir "$PWD/dist"
 ```
 
-Linux/macOS는 같은 명령에 절대 scratch 경로를 지정합니다. 패키징은 통과한 메시지·상태 보고서와 현재 SDK/서비스 소스 해시를 대조합니다.
+Linux/macOS는 같은 명령에 절대 scratch 경로를 지정합니다. 패키징은 메시지·상태·처리 보안·애플리케이션 네 보고서와 현재 SDK/서비스 전체 소스 목록 및 해시를 대조합니다.
 
 | 패키지 | 설치·참조 |
 | --- | --- |
-| .NET | `dotnet add package SApi.Protocol --version 0.1.0-alpha.3 --source /absolute/path/dist` |
+| .NET | `dotnet add package SApi.Protocol --version 0.1.0-alpha.4 --source /absolute/path/dist` |
+| 클래식 ASP.NET | `SApi.AspNet` 같은 버전 추가 |
 | ASP.NET Core | `SApi.AspNetCore` 같은 버전 추가 |
-| Python | `python -m pip install /absolute/path/dist/sapi_protocol-0.1.0a3-py3-none-any.whl` |
-| 상태 서비스 | `python -m pip install --find-links /absolute/path/dist sapi-state==0.1.0a3` |
-| JavaScript | `npm install /absolute/path/dist/sapi-protocol-0.1.0-alpha.3.tgz` |
+| Python | `python -m pip install /absolute/path/dist/sapi_protocol-0.1.0a4-py3-none-any.whl` |
+| 상태 서비스 | `python -m pip install --find-links /absolute/path/dist sapi-state==0.1.0a4` |
+| JavaScript | `npm install /absolute/path/dist/sapi-protocol-0.1.0-alpha.4.tgz` |
 | Java | JAR와 Jackson 의존성을 classpath에 추가하거나 JAR/POM을 로컬 Maven 저장소에 등록 |
 
 Java 일반 프로젝트는 `mvn -f sdks/java/pom.xml package`를 사용할 수 있습니다. 공통 시험·패키징 도구는 javac/JAR 경로를 사용합니다.
@@ -134,13 +148,13 @@ StateClient serviceState = new StateClient(URI.create("https://127.0.0.1:8443"),
     new File("/secure/ca.pem"), new File("/secure/service.pem"), new File("/secure/service.key"));
 Codec client = new Codec("orders", clientState);
 SecureServer server = new SecureServer(new Codec("orders", serviceState), serviceState);
-var schema = Sapi.object().put("type","object");
+com.fasterxml.jackson.databind.node.ObjectNode schema = Sapi.object().put("type","object");
 schema.set("properties", Sapi.object().set("message", Sapi.object().put("type","string").put("maxBytes",128)));
 server.register("echo", "echo", schema, schema,
     (p, d) -> p.subject.equals("client-1"),
     (p, d) -> d);
 RequestContext context = clientState.request(client, "client-1", "echo", Sapi.object().put("message", "hello"));
-var payload = client.acceptResponse(context, server.handle(context.wire));
+com.fasterxml.jackson.databind.JsonNode payload = client.acceptResponse(context, server.handle(context.wire));
 ```
 
 Java 상태 어댑터는 PKCS#8 PEM EC/RSA 키를 지원하고 인증서 trust store·키 store를 구성합니다.
@@ -162,3 +176,32 @@ Java 상태 어댑터는 PKCS#8 PEM EC/RSA 키를 지원하고 인증서 trust s
 작업의 호출 제한은 기본 60회/60초입니다. `inventory/Inventory`는 name/scope/requests/period를 반환합니다. 관리된 배포는 `StateClient`를 재전송 저장소로 전달하여 모든 프로세스의 주체별 quota와 작업별 한도를 공유합니다. custom ReplayStore는 `admit/Admit` 계약도 구현해야 하며 미구현·장애 시 처리하지 않습니다. 메모리 저장소는 재시작과 별도 프로세스 사이에서 상태를 공유하지 않습니다.
 
 선언형 DB·업무 상태·고정 외부 요청 서버는 [애플리케이션 서비스](APPLICATION.md)에 있습니다. 자유롭게 추가한 handler의 외부 부작용은 출력 검사만으로 되돌릴 수 없으므로 실제 거래 경계 안에서 검사와 커밋을 구성합니다.
+
+## .NET Framework와 구버전 설정
+
+NuGet은 프로젝트에 맞는 `net462`, `netstandard2.0`, `net6.0`, `net8.0` 어셈블리를 선택합니다. .NET Framework 클라이언트는 `SApi.Protocol`, 클래식 ASP.NET 서버는 `SApi.AspNet`을 참조합니다.
+
+```csharp
+using SApi.AspNet;
+using System.Web.Routing;
+// Application_Start에서 입력·출력 스키마와 정책을 등록한 서버를 연결합니다.
+RouteTable.Routes.MapSapi(server);
+```
+
+.NET Framework의 `App.config` 또는 ASP.NET의 `Web.config`에 다음 TLS 설정을 추가하고, 설치된 Windows와 .NET 보안 업데이트를 적용합니다. 인증서·호스트명 검증은 SDK가 유지합니다.
+
+```xml
+<configuration>
+  <runtime>
+    <AppContextSwitchOverrides value="Switch.System.Net.DontEnableSchUseStrongCrypto=false;Switch.System.Net.DontEnableSystemDefaultTlsVersions=false" />
+  </runtime>
+</configuration>
+```
+
+.NET Framework 어셈블리는 최신 컴파일러로 빌드한 뒤 구버전 프로젝트에서 참조할 수 있습니다. 사용자 프로젝트의 C# 문법 버전을 올릴 필요는 없습니다. 직접 `IReplayStore`를 구현한다면 `Claim`과 `Admit`을 모두 원자적으로 구현해야 합니다.
+
+Java 8은 AES-256을 활성화해야 하며 일반적으로 8u161 이후 업데이트에서 기본 활성화됩니다. `Cipher.getMaxAllowedKeyLength("AES") >= 256`을 확인할 수 있습니다. Java SDK는 Java 8 바이트코드를 배포합니다.
+
+Node.js 16에서는 SDK가 `node:crypto`의 Web Crypto와 Node의 HTTP(S) 모듈을 사용합니다. 전역 `crypto`·`fetch`를 설치하거나 보안 기능을 비활성화하는 설정은 필요하지 않습니다. 브라우저는 Web Crypto 및 fetch 환경에서 기존 모듈을 사용합니다.
+
+구버전 호환성은 SAPi 코드와 메시지 계약의 범위이며, 실행 환경 자체의 보안 업데이트를 제공하지는 않습니다.

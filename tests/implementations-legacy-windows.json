@@ -1,0 +1,104 @@
+{
+  "python": {
+    "command": [
+      "{python}",
+      "{root}/tests/drivers/python_driver.py"
+    ]
+  },
+  "javascript": {
+    "command": [
+      "{node}",
+      "{root}/tests/drivers/javascript_driver.mjs"
+    ]
+  },
+  "dotnet": {
+    "features": [
+      "http_server"
+    ],
+    "build": [
+      [
+        "dotnet",
+        "build",
+        "{root}/tests/drivers/dotnet/Driver.csproj",
+        "--artifacts-path",
+        "{work}/dotnet",
+        "--nologo",
+        "--verbosity",
+        "quiet",
+        "-p:NuGetAudit=false"
+      ]
+    ],
+    "artifact": "dotnet/bin/**/SApi.Driver.dll",
+    "command": [
+      "dotnet",
+      "{artifact}"
+    ]
+  },
+  "java": {
+    "build": [
+      [
+        "{javac}",
+        "-source",
+        "8",
+        "-target",
+        "8",
+        "-encoding",
+        "UTF-8",
+        "-cp",
+        "{java_classpath}",
+        "-d",
+        "{work}/java",
+        "{java_sources}",
+        "{root}/tests/drivers/JavaDriver.java"
+      ]
+    ],
+    "command": [
+      "{java}",
+      "-cp",
+      "{work}/java{pathsep}{java_classpath}",
+      "JavaDriver"
+    ]
+  },
+  "dotnet_framework": {
+    "build": [
+      [
+        "dotnet",
+        "build",
+        "{root}/tests/drivers/dotnet-legacy/Driver.csproj",
+        "--artifacts-path",
+        "{work}/legacy",
+        "--nologo",
+        "--verbosity",
+        "quiet",
+        "-p:NuGetAudit=false"
+      ]
+    ],
+    "artifact": "legacy/bin/**/SApi.LegacyDriver.exe",
+    "command": [
+      "{artifact}"
+    ]
+  },
+  "dotnet6": {
+    "features": [
+      "http_server"
+    ],
+    "build": [
+      [
+        "dotnet",
+        "build",
+        "{root}/tests/drivers/dotnet6/Driver.csproj",
+        "--artifacts-path",
+        "{work}/core6",
+        "--nologo",
+        "--verbosity",
+        "quiet",
+        "-p:NuGetAudit=false"
+      ]
+    ],
+    "artifact": "core6/bin/**/SApi.Core6Driver.dll",
+    "command": [
+      "dotnet",
+      "{artifact}"
+    ]
+  }
+}

@@ -7,7 +7,7 @@
 로컬 패키지 폴더에서 설치하고 상태 서비스를 실행하기 전에 인증서를 준비합니다.
 
 ```text
-python -m pip install --find-links /absolute/path/dist sapi-application==0.1.0a3
+python -m pip install --find-links /absolute/path/dist sapi-application==0.1.0a4
 sapi-state init --directory /secure/sapi/operator --anchor-directory /secure/sapi-checkpoints --service orders --subject client-1
 sapi-application init --directory /secure/sapi/application --state-config /secure/sapi/operator/config.json --service orders
 sapi-application inventory --config /secure/sapi/application/config.json

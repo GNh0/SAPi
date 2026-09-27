@@ -21,7 +21,9 @@ jobs:
           node-version: '24'
       - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
-          dotnet-version: '8.0.x'
+          dotnet-version: |
+            6.0.x
+            8.0.x
       - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
         with:
           distribution: temurin
@@ -80,7 +82,9 @@ jobs:
           node-version: '24'
       - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
-          dotnet-version: '8.0.x'
+          dotnet-version: |
+            6.0.x
+            8.0.x
       - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
         with:
           distribution: temurin
@@ -102,3 +106,71 @@ jobs:
           path: |
             ${{ runner.temp }}/sapi-validation/state-verification.json
             ${{ runner.temp }}/sapi-validation/application-verification.json
+
+  compatibility:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        id: harness
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '16.0.0'
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: |
+            6.0.x
+            8.0.x
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: '8'
+      - name: Prepare modern service and build dependencies
+        run: '"${{ steps.harness.outputs.python-path }}" tools/bootstrap.py --work-dir "${{ runner.temp }}/sapi-legacy"'
+        shell: bash
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        id: sdk_python
+        with:
+          python-version: '3.9'
+      - name: Install SDK dependencies on Python 3.9
+        run: python -m pip install --disable-pip-version-check --target "${{ runner.temp }}/sapi-sdk-deps" cryptography==50.0.1
+      - name: Verify actual older SDK runtimes against modern services
+        env:
+          SAPI_PYTHON: ${{ steps.sdk_python.outputs.python-path }}
+          SAPI_SDK_DEPS: ${{ runner.temp }}/sapi-sdk-deps
+        run: '"${{ steps.harness.outputs.python-path }}" tools/verify_compatibility.py --work-dir "${{ runner.temp }}/sapi-legacy"'
+        shell: bash
+      - name: Build compatibility packages
+        run: '"${{ steps.harness.outputs.python-path }}" tools/package.py --work-dir "${{ runner.temp }}/sapi-legacy" --output-dir "${{ runner.temp }}/sapi-legacy-packages"'
+        shell: bash
+      - name: Consume packages in actual older runtimes
+        env:
+          SAPI_PYTHON: ${{ steps.sdk_python.outputs.python-path }}
+          SAPI_SDK_DEPS: ${{ runner.temp }}/sapi-sdk-deps
+          SAPI_JAVAC: javac
+        run: '"${{ steps.harness.outputs.python-path }}" tools/smoke_packages.py --work-dir "${{ runner.temp }}/sapi-legacy" --package-dir "${{ runner.temp }}/sapi-legacy-packages"'
+        shell: bash
+      - name: Audit exact compatibility dependencies
+        env:
+          SAPI_SDK_DEPS: ${{ runner.temp }}/sapi-sdk-deps
+        run: '"${{ steps.harness.outputs.python-path }}" tools/audit_dependencies.py --work-dir "${{ runner.temp }}/sapi-legacy"'
+        shell: bash
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: compatibility-${{ matrix.os }}
+          path: |
+            ${{ runner.temp }}/sapi-legacy/*verification.json
+            ${{ runner.temp }}/sapi-legacy/compatibility.json
+            ${{ runner.temp }}/sapi-legacy/compatibility.log
+            ${{ runner.temp }}/sapi-legacy/dependency-audit.json
+            ${{ runner.temp }}/sapi-legacy/packages.json
+            ${{ runner.temp }}/sapi-legacy/package-smoke.json
+            ${{ runner.temp }}/sapi-legacy/package-smoke.log
+            ${{ runner.temp }}/sapi-legacy-packages/*

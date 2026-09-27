@@ -18,7 +18,7 @@
 
 구현자가 실행한 최신 회귀와 패키지 소비는 [검증 기록](VALIDATION.md)에 있습니다. 원본 메모의 이전 소스/44개 상태 결과와 최신 실행 증거를 구분합니다.
 
-[이전 alpha.2의 GitHub CI](https://github.com/GNh0/SAPi/actions/runs/36303335452)도 Windows·Ubuntu·PostgreSQL의 당시 검사를 통과했습니다. 최신 alpha.3의 세 작업과 추가 검증은 [현재 CI](https://github.com/GNh0/SAPi/actions/runs/36310806375)에 있습니다. CI 실행과 소스 해시 대조는 [검증 기록](VALIDATION.md)에 있습니다.
+[이전 alpha.2의 GitHub CI](https://github.com/GNh0/SAPi/actions/runs/36303335452)와 [alpha.3의 CI](https://github.com/GNh0/SAPi/actions/runs/36310806375)는 Windows·Ubuntu·PostgreSQL의 당시 검사를 통과했습니다. 버전별 CI 실행과 소스 해시 대조는 [검증 기록](VALIDATION.md)에 있습니다.
 
 ## alpha.3 애플리케이션 처리 검토
 
@@ -39,7 +39,22 @@
 
 ## 의존성
 
-초기 OSV 조회에서 빌드 도구 setuptools 80.9.0과 wheel 0.45.1의 공지를 확인해 각각 84.0.0·0.48.0으로 교체했습니다. 패키지 build-system의 setuptools 최소 버전도 수정했습니다. [최종 조회](../tests/results/dependency-audit-windows.json)는 설치된 PyPI·Maven 17개 의존성에서 공지 발견 0건입니다.
+초기 OSV 조회에서 빌드 도구 setuptools 80.9.0과 wheel 0.45.1의 공지를 확인해 각각 84.0.0·0.48.0으로 교체했습니다. [alpha.3 조회](../tests/results/dependency-audit-windows.json)는 설치된 PyPI·Maven 17개 의존성에서 공지 발견 0건입니다. alpha.4에서는 Python 3.9 SDK의 별도 의존성과 복원된 NuGet 런타임·빌드 의존성도 조회합니다. 결과와 실제 조회 버전은 [alpha.4 보고서](../tests/results/alpha4/dependency-audit.json)에 있습니다.
+
+## alpha.4 구버전 호환 검토
+
+구버전 암호화·전송·입력 검증과 패키지/CI 경로를 분리된 에이전트가 소스 검토했습니다. 실행 검증은 주 담당의 [구버전 보고서](../tests/results/alpha4/compatibility.json)와 구분합니다.
+
+| 발견 | 수정·검증 |
+| --- | --- |
+| Java 8에서 timeout 뒤 동기 disconnect가 호출자를 붙잡을 수 있음 | 제한된 별도 정리 작업으로 분리, 중단된 부분 본문 deadline 회귀 |
+| Python 구버전 표준 라이브러리의 IP 분류 차이 | 고정된 특수 주소 범위와 IPv6 public unicast 조건, Python 3.9 주소 회귀 |
+| Python 3.9에서 타입 정보 해석 시 최신 union 문법 실패 | Optional/Union 타입으로 변경, 실제 get_type_hints 실행 |
+| .NET 구버전 state 전송 실패의 오류 코드 차이 | state_unavailable로 일치시키고 기존 authority 오류 보존 |
+| CI에서 SDK Python 의존성 경로와 공지 조회 누락 | 별도 SDK dependency 경로를 검사와 audit 모두 전달 |
+| 검증 뒤 추가된 파일과 검증·패키징 도중 소스 변경 | 전체 파일 목록·SHA-256의 시작/종료 및 보고서 일치 검사 |
+
+최종 검토 범위와 한계는 [원본 보고서](../tests/results/alpha4/compatibility-review-agent.md)에 있습니다. 낮은 런타임 버전에서도 동일한 메시지 암호와 인증 규칙을 유지하며, 운영체제·런타임 자체의 보안 패치를 대체하지 않습니다.
 
 ## 검토 한계와 신뢰 조건
 

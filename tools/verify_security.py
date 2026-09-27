@@ -18,7 +18,10 @@ ROOT=Path(__file__).resolve().parents[1]
 
 
 def main():
+    from implementations import source_hashes
+    snapshot=source_hashes(ROOT)
     parser=argparse.ArgumentParser();parser.add_argument("--work-dir",type=Path,required=True)
+    parser.add_argument("--implementations", type=Path, default=ROOT/"tests/implementations.json")
     args=parser.parse_args();work=args.work_dir.resolve()
     for folder in (work/"pydeps",ROOT/"sdks/python",ROOT/"services/state"):sys.path.insert(0,str(folder))
     from implementations import build_registry
@@ -30,7 +33,7 @@ def main():
     from sapi.serialization import unb64
     fixture=json.loads((ROOT/"tests/vectors.json").read_text(encoding="utf-8"))
     env=dict(os.environ,PYTHONPATH=os.pathsep.join((str(work/"pydeps"),str(ROOT/"sdks/python"),str(ROOT/"services/state"))),PYTHONDONTWRITEBYTECODE="1",DOTNET_CLI_TELEMETRY_OPTOUT="1")
-    commands=build_registry(ROOT,work,ROOT/"tests/implementations.json",run,env)
+    commands=build_registry(ROOT,work,args.implementations.resolve(),run,env,snapshot)
     clients={n:Driver(n+" security client",c,env) for n,c in commands.items()}
     servers={n:Driver(n+" security server",c,env) for n,c in commands.items()}
     cases=[]
@@ -158,6 +161,7 @@ def main():
             def addSuccess(self,test):super().addSuccess(test);self.passed.append(test.shortDescription())
         result=unittest.TextTestRunner(verbosity=1,resultclass=Result).run(unittest.TestSuite(cases))
         hashes={p.relative_to(ROOT).as_posix():hashlib.sha256(p.read_bytes()).hexdigest() for folder in (ROOT/"sdks",ROOT/"services") for p in folder.rglob("*") if p.is_file() and p.suffix in (".py",".cs",".java",".js",".toml",".xml",".json",".props",".csproj")}
+        hashes=commands.checked_hashes(ROOT)
         report={"utc":datetime.datetime.now(datetime.timezone.utc).isoformat(),"passed":len(result.passed),"total":result.testsRun,"failures":[t.shortDescription() for t,_ in result.failures+result.errors],"cases":result.passed,"implementations":list(commands),"backends":["sqlite"],"source_sha256":hashes}
         (work/"security-verification.json").write_text(json.dumps(report,indent=2)+"\n",encoding="utf-8",newline="\n")
         print(json.dumps({k:report[k] for k in ("passed","total","failures")}));return 0 if result.wasSuccessful() else 1

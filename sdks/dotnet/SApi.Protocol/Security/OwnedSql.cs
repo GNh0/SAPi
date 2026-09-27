@@ -44,10 +44,10 @@ public sealed class OwnedSql
     private static object? Scalar(JsonElement v) => v.ValueKind switch {
         JsonValueKind.Null=>null,JsonValueKind.True=>true,JsonValueKind.False=>false,
         JsonValueKind.String when System.Text.Encoding.UTF8.GetByteCount(v.GetString()!)<=65536=>v.GetString(),
-        JsonValueKind.Number when double.IsFinite(v.GetDouble())&&Math.Abs(v.GetDouble())<=9007199254740991d=>v.TryGetInt64(out var n)?(object)n:v.GetDouble(),
+        JsonValueKind.Number when Runtime.Finite(v.GetDouble())&&Math.Abs(v.GetDouble())<=9007199254740991d=>v.TryGetInt64(out var n)?(object)n:v.GetDouble(),
         _=>throw new ArgumentException("bounded SQL scalar required")};
     private static object?[] Identity(KeyRecord p,JsonElement v) => [p.Subject,Scalar(v)];
-    public SqlPlan Select(KeyRecord p,JsonElement value) => new($"SELECT {string.Join(',',read)} FROM {table} WHERE {owner}=? AND {id}=?",Identity(p,value));
+    public SqlPlan Select(KeyRecord p,JsonElement value) => new($"SELECT {string.Join(",",read)} FROM {table} WHERE {owner}=? AND {id}=?",Identity(p,value));
     public SqlPlan Delete(KeyRecord p,JsonElement value) => new($"DELETE FROM {table} WHERE {owner}=? AND {id}=?",Identity(p,value));
     private (string Name,object? Value)[] Changes(JsonElement value)
     {
@@ -56,10 +56,10 @@ public sealed class OwnedSql
     }
     public SqlPlan Update(KeyRecord p,JsonElement value,JsonElement changes)
     {
-        var pairs=Changes(changes);return new($"UPDATE {table} SET "+string.Join(',',pairs.Select(pair=>pair.Name+"=?"))+$" WHERE {owner}=? AND {id}=?",pairs.Select(pair=>pair.Value).Concat(Identity(p,value)));
+        var pairs=Changes(changes);return new($"UPDATE {table} SET "+string.Join(",",pairs.Select(pair=>pair.Name+"=?"))+$" WHERE {owner}=? AND {id}=?",pairs.Select(pair=>pair.Value).Concat(Identity(p,value)));
     }
     public SqlPlan Insert(KeyRecord p,JsonElement value,JsonElement changes)
     {
-        var pairs=Changes(changes);var columns=new[]{owner,id}.Concat(pairs.Select(pair=>pair.Name)).ToArray();return new($"INSERT INTO {table} ({string.Join(',',columns)}) VALUES ({string.Join(',',columns.Select(_=>"?"))})",Identity(p,value).Concat(pairs.Select(pair=>pair.Value)));
+        var pairs=Changes(changes);var columns=new[]{owner,id}.Concat(pairs.Select(pair=>pair.Name)).ToArray();return new($"INSERT INTO {table} ({string.Join(",",columns)}) VALUES ({string.Join(",",columns.Select(_=>"?"))})",Identity(p,value).Concat(pairs.Select(pair=>pair.Value)));
     }
 }

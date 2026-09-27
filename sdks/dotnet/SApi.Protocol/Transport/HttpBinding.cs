@@ -14,6 +14,11 @@ public static class HttpBinding
             url.Query.Length != 0 || url.Fragment.Length != 0 || url.UserInfo.Length != 0) throw new ArgumentException("HTTP(S) /sapi URL required");
         if (wire.Length > Codec.MaxWire) throw new SapiException();
         foreach (var ch in wire) if (ch > 127) throw new SapiException();
+#if !NET6_0_OR_GREATER
+        var response = await LegacyTransport.PostAsync(url, Encoding.ASCII.GetBytes(wire), "application/sapi+jwe", Codec.MaxWire, trustedRoot, null, deadline ?? TimeSpan.FromSeconds(30), cancellationToken).ConfigureAwait(false);
+        if (response.Status != 200 || response.Body.Any(b => b > 127)) throw new SapiException("transport_error");
+        return Encoding.ASCII.GetString(response.Body);
+#else
         using var handler = new HttpClientHandler { AllowAutoRedirect = false };
         if (trustedRoot != null)
         {
@@ -46,5 +51,6 @@ public static class HttpBinding
         if (total > Codec.MaxWire) throw new SapiException("transport_error");
         for (var i = 0; i < total; i++) if (buffer[i] > 127) throw new SapiException("transport_error");
         return Encoding.ASCII.GetString(buffer, 0, total);
+#endif
     }
 }

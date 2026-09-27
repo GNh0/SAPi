@@ -1,3 +1,4 @@
+from __future__ import annotations
 """Replaceable key storage and atomic encryption-budget reservation."""
 import threading
 from typing import Protocol

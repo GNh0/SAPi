@@ -10,13 +10,26 @@ API 메시지와 처리 계층에 보안을 적용하는 규격, SDK, 애플리�
 - SQLite·PostgreSQL 영속 재전송 저장소와 공유 사용량 관리
 - mTLS 기반 키 발급·자동/수동 회전·폐기·루트 키 교체
 - 상태 변조·과거 상태 복원 탐지와 검증된 감사 기록
-- .NET, Java, Python, JavaScript SDK 및 ASP.NET Core 연결 계층
+- .NET, Java, Python, JavaScript SDK 및 ASP.NET·ASP.NET Core 연결 계층
 
 메시지 규격은 언어·프레임워크와 독립적입니다. 각 SDK는 동일한 메시지와 상태 관리 API를 사용합니다.
 
+## 지원 환경
+
+| 구성 | 최소 환경 |
+| --- | --- |
+| .NET SDK | .NET Framework 4.6.2, .NET Standard 2.0, .NET 6 |
+| ASP.NET 어댑터 | .NET Framework 4.6.2 / ASP.NET Core 6 |
+| Java SDK | Java 8, AES-256 활성화 |
+| Python SDK | Python 3.9.2 |
+| JavaScript SDK | Node.js 16 / Web Crypto를 제공하는 브라우저 |
+| 상태·애플리케이션 서비스 | Python 3.10 |
+
+구버전 설정과 설치 예시는 [SDK 사용법](docs/USAGE.md)에 있습니다.
+
 ## 시작하기
 
-패키지 버전은 `0.1.0-alpha.3`이며, 메시지 규격은 `SAPI/0.1`입니다.
+패키지 버전은 `0.1.0-alpha.4`이며, 메시지 규격은 `SAPI/0.1`입니다.
 [애플리케이션 서비스](docs/APPLICATION.md), [SDK 사용법](docs/USAGE.md), [상태 서비스 운영](docs/STATE.md)을 제공합니다.
 
 ```text
@@ -46,7 +59,7 @@ SDK의 `StateClient`를 연결하면 발급된 키, 재전송 저장소, 주체�
 
 ## 빌드와 검증
 
-Python 3.10+, .NET SDK 8+, Node.js 20+, JDK 11+ 환경에서 실행합니다.
+Python 3.10+, .NET SDK 8+, Node.js 20+, JDK 11+ 환경에서 빌드합니다. 패키지 소비 검사는 .NET 6·8 런타임을 함께 사용합니다.
 
 ```text
 python tools/bootstrap.py --work-dir /absolute/scratch/sapi

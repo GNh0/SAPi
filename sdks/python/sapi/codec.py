@@ -1,10 +1,11 @@
+from __future__ import annotations
 import hashlib
 import hmac
 import math
 import secrets
 import time
 import threading
-from typing import Callable
+from typing import Callable, Optional, Union
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from .constants import MAX_WIRE, MAX_BODY, NAME, REQUEST_ID, HEADER_KEYS
 from .errors import SapiError
@@ -13,7 +14,7 @@ from .keys import KeyProvider, StaticKeyProvider
 from .serialization import b64, unb64, parse, encode, digest
 
 class Codec:
-    def __init__(self, service: str, keys: dict[str, KeyRecord] | KeyProvider, clock: Callable[[], int] | None = None):
+    def __init__(self, service: str, keys: Union[dict[str, KeyRecord], KeyProvider], clock: Optional[Callable[[], int]] = None):
         if not NAME.fullmatch(service):
             raise ValueError("valid service and key identifiers required")
         if isinstance(keys, dict):

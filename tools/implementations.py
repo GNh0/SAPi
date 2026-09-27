@@ -6,7 +6,18 @@ from pathlib import Path
 import sys
 
 
-def build_registry(root: Path, work: Path, manifest: Path, run, env):
+def source_hashes(root):
+    return {p.relative_to(root).as_posix():hashlib.sha256(p.read_bytes()).hexdigest()
+            for folder in (root/"sdks",root/"services") for p in folder.rglob("*")
+            if p.is_file() and p.suffix in (".py",".cs",".java",".js",".toml",".xml",".json",".props",".csproj")}
+
+class Commands(dict):
+    def checked_hashes(self, root):
+        if source_hashes(root)!=self.source_sha256:raise RuntimeError("SDK/service source changed during verification")
+        return self.source_sha256
+
+def build_registry(root: Path, work: Path, manifest: Path, run, env, snapshot=None):
+    before=source_hashes(root) if snapshot is None else snapshot
     entries = json.loads(manifest.read_text("utf-8"))
     if not isinstance(entries, dict) or not entries:
         raise ValueError("at least one implementation required")
@@ -19,10 +30,11 @@ def build_registry(root: Path, work: Path, manifest: Path, run, env):
             raise RuntimeError(f"jar integrity failure: {name}")
         jars.append(path)
     (work / "java").mkdir(exist_ok=True)
-    values = {"root": str(root), "work": str(work), "python": sys.executable,
+    values = {"root": str(root), "work": str(work), "python": env.get("SAPI_PYTHON", sys.executable),
+              "node": env.get("SAPI_NODE", "node"), "java": env.get("SAPI_JAVA", "java"), "javac": env.get("SAPI_JAVAC", "javac"),
               "pathsep": os.pathsep, "java_classpath": os.pathsep.join(str(p) for p in jars)}
     sources = [str(p) for p in (root / "sdks" / "java" / "src" / "main" / "java").rglob("*.java")]
-    commands = {}
+    commands = Commands();commands.source_sha256=before
     for name, entry in entries.items():
         if not name or any(c not in "abcdefghijklmnopqrstuvwxyz0123456789_-" for c in name):
             raise ValueError("invalid implementation name")

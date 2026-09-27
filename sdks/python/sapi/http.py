@@ -1,3 +1,4 @@
+from __future__ import annotations
 """Bounded standard-library HTTP transport with an absolute response deadline."""
 import http.client
 import socket

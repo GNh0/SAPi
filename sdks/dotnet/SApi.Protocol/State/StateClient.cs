@@ -9,27 +9,44 @@ namespace SApi.Protocol;
 /// <summary>Optional mTLS state authority adapter. Keys are fetched without a cache.</summary>
 public sealed class StateClient : IKeyProvider, IReplayStore, IDisposable
 {
+#if NET6_0_OR_GREATER
     private readonly HttpClient client;
+#else
+    private readonly X509Certificate2 legacyRoot, legacyIdentity;
+#endif
     private readonly Uri endpoint;
     private readonly TimeSpan timeout;
     private X509Certificate2? ownedRoot, ownedIdentity;
     public static StateClient FromPemFiles(Uri origin, string caFile, string certificate, string privateKey, TimeSpan? timeout = null)
     {
+#if !NET6_0_OR_GREATER
+        var (root, identity) = LegacyTransport.Pem(caFile, certificate, privateKey);
+#else
         var root = X509Certificate2.CreateFromPem(File.ReadAllText(caFile));
-        var identity = X509Certificate2.CreateFromPemFile(certificate, privateKey);
-        if (OperatingSystem.IsWindows())
+        X509Certificate2? identity = null;
+#endif
+        try
         {
-            var imported = new X509Certificate2(identity.Export(X509ContentType.Pfx), (string?)null, X509KeyStorageFlags.DefaultKeySet);
-            identity.Dispose(); identity = imported;
+#if NET6_0_OR_GREATER
+            identity = X509Certificate2.CreateFromPemFile(certificate, privateKey);
+            if (OperatingSystem.IsWindows())
+            {
+                var imported = new X509Certificate2(identity.Export(X509ContentType.Pfx), (string?)null, X509KeyStorageFlags.DefaultKeySet);
+                identity.Dispose(); identity = imported;
+            }
+#endif
+            return new StateClient(origin, root, identity, timeout) {ownedRoot = root, ownedIdentity = identity};
         }
-        try {return new StateClient(origin, root, identity, timeout) {ownedRoot = root, ownedIdentity = identity};}
-        catch {root.Dispose(); identity.Dispose(); throw;}
+        catch {root.Dispose(); identity?.Dispose(); throw;}
     }
     public StateClient(Uri origin, X509Certificate2 trustedRoot, X509Certificate2 clientIdentity, TimeSpan? timeout = null)
     {
         if (origin.Scheme != "https" || origin.AbsolutePath != "/" || origin.Query.Length != 0 || origin.Fragment.Length != 0 || origin.UserInfo.Length != 0) throw new ArgumentException("HTTPS authority origin required");
         if (!clientIdentity.HasPrivateKey) throw new ArgumentException("client private key required");
         endpoint = new Uri(origin, "/v1/state"); this.timeout = timeout ?? TimeSpan.FromSeconds(10);
+#if !NET6_0_OR_GREATER
+        legacyRoot = trustedRoot; legacyIdentity = clientIdentity;
+#else
         var handler = new HttpClientHandler {AllowAutoRedirect = false, ClientCertificateOptions = ClientCertificateOption.Manual};
         handler.ClientCertificates.Add(clientIdentity);
         handler.ServerCertificateCustomValidationCallback = (_, cert, _, errors) =>
@@ -41,6 +58,7 @@ public sealed class StateClient : IKeyProvider, IReplayStore, IDisposable
             return chain.Build(cert);
         };
         client = new HttpClient(handler) {Timeout = Timeout.InfiniteTimeSpan};
+#endif
     }
     public JsonElement Call(string action, Dictionary<string, object>? parameters = null) => CallAsync(action, parameters).GetAwaiter().GetResult();
     public async Task<JsonElement> CallAsync(string action, Dictionary<string, object>? parameters = null)
@@ -48,6 +66,12 @@ public sealed class StateClient : IKeyProvider, IReplayStore, IDisposable
         try
         {
             var value = parameters == null ? new Dictionary<string, object>() : new(parameters); value["action"] = action;
+#if !NET6_0_OR_GREATER
+            var response = await LegacyTransport.PostAsync(endpoint, JsonSerializer.SerializeToUtf8Bytes(value), "application/json", 1048576, legacyRoot, legacyIdentity, timeout, CancellationToken.None).ConfigureAwait(false);
+            var result = Codec.Parse(response.Body);
+            if (result.TryGetProperty("error", out var error)) throw new SapiException(error.GetString() ?? "state_unavailable");
+            if (response.Status != 200) throw new SapiException("state_unavailable"); return result;
+#else
             using var cancellation = new CancellationTokenSource(timeout);
             using var content = new ByteArrayContent(JsonSerializer.SerializeToUtf8Bytes(value));
             content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/json");
@@ -65,8 +89,9 @@ public sealed class StateClient : IKeyProvider, IReplayStore, IDisposable
             var result = Codec.Parse(bytes.ToArray());
             if (result.TryGetProperty("error", out var error)) throw new SapiException(error.GetString() ?? "state_unavailable");
             if (!response.IsSuccessStatusCode) throw new SapiException("state_unavailable"); return result;
+#endif
         }
-        catch (SapiException) {throw;}
+        catch (SapiException e) {if (e.Code == "transport_error") throw new SapiException("state_unavailable"); throw;}
         catch {throw new SapiException("state_unavailable");}
     }
     private static KeyRecord Record(JsonElement value) => new(Codec.UnB64(value.GetProperty("master").GetString()!), value.GetProperty("subject").GetString()!, value.GetProperty("scopes").EnumerateArray().Select(s => s.GetString()!));
@@ -83,5 +108,11 @@ public sealed class StateClient : IKeyProvider, IReplayStore, IDisposable
             catch (SapiException e) when (n < 2 && e.Code is "key_retired" or "key_rotation_required") { }
         }
     }
-    public void Dispose() {client.Dispose(); ownedRoot?.Dispose(); ownedIdentity?.Dispose();}
+    public void Dispose()
+    {
+#if NET6_0_OR_GREATER
+        client.Dispose();
+#endif
+        ownedRoot?.Dispose(); ownedIdentity?.Dispose();
+    }
 }

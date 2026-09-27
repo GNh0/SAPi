@@ -1,3 +1,4 @@
+import {clone} from './platform.js';
 import {MAX_BODY, NAME} from './constants.js';
 import {SapiError} from './errors.js';
 import {MemoryReplayStore} from './replay.js';
@@ -25,7 +26,7 @@ export class SecureServer {
       if (await o.policy(principal, request.data) !== true) throw new SapiError('forbidden');
       if (!o.input.validate(request.data)) throw new SapiError('invalid_input');
       if (this.codec.clock() >= request.exp) throw new SapiError('invalid_input');
-      const data = structuredClone(await o.handler(principal, request.data));
+      const data = clone(await o.handler(principal, request.data));
       if (!object(data) || !o.output.validate(data) || encode(data).length > MAX_BODY - 512) throw new Error('invalid handler result');
       response.ok = true; response.data = data;
     } catch (e) {

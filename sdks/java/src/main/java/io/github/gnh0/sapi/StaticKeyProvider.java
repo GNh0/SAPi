@@ -8,7 +8,7 @@ public final class StaticKeyProvider implements KeyProvider {
     private final Map<String, Integer> counts = new HashMap<>();
     public StaticKeyProvider(Map<String, KeyRecord> keys) {
         if (keys.isEmpty() || keys.keySet().stream().anyMatch(k -> !Sapi.name(k))) throw new IllegalArgumentException("valid keys required");
-        this.keys = Map.copyOf(keys);
+        this.keys = Legacy.mapCopy(keys);
     }
     public KeyRecord get(String service, String kid) {
         KeyRecord record = keys.get(kid); if (record == null) throw new SapiException(); return record;

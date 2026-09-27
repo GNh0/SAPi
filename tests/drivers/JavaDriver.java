@@ -16,6 +16,7 @@ public final class JavaDriver {
     static boolean oneString(JsonNode d, String key) {return d.isObject() && d.size() == 1 && d.has(key) && d.get(key).isTextual();}
     static JsonNode invoke(JsonNode c) throws Exception {
         String action = c.get("action").textValue(); String slot = c.path("slot").asText("default");
+        if (action.equals("runtime")) return Sapi.object().put("runtime","Java").put("version",System.getProperty("java.version"));
         if (action.equals("init")) {
             Map<String, KeyRecord> keys = new HashMap<>();
             Iterator<Map.Entry<String, JsonNode>> fields = c.get("keys").properties().iterator();
@@ -62,10 +63,10 @@ public final class JavaDriver {
         if (action.equals("schema")) {try {Schema schema=new Schema(c.get("schema"));return Sapi.object().put("compiled",true).put("valid",schema.validate(c.get("value")));} catch (Exception e) {return Sapi.object().put("compiled",false);}}
         if (action.equals("inventory")) {ObjectNode value=Sapi.object();value.set("operations",server.inventory());return value;}
         if (action.equals("sql")) {try {
-            OwnedSql table=new OwnedSql("accounts","id","owner",List.of("id","owner","display_name","role"),List.of("display_name","notes"));
+            OwnedSql table=new OwnedSql("accounts","id","owner",Legacy.list("id","owner","display_name","role"),Legacy.list("display_name","notes"));
             KeyRecord p=codec.principal(c.get("kid").textValue());JsonNode id=c.get("id");SqlPlan plan;
             switch(c.get("kind").textValue()) {case "select":plan=table.select(p,id);break;case "delete":plan=table.delete(p,id);break;case "update":plan=table.update(p,id,c.get("changes"));break;case "insert":plan=table.insert(p,id,c.get("changes"));break;default:throw new IllegalArgumentException();}
-            ObjectNode result=Sapi.object().put("text",plan.text(c.path("dialect").asText("qmark")));var values=result.putArray("values");
+            ObjectNode result=Sapi.object().put("text",plan.text(c.path("dialect").asText("qmark")));com.fasterxml.jackson.databind.node.ArrayNode values=result.putArray("values");
             for(Object v:plan.values()) {if(v==null)values.addNull();else if(v instanceof String)values.add((String)v);else if(v instanceof Boolean)values.add((Boolean)v);else if(v instanceof Long)values.add((Long)v);else values.add(((Number)v).doubleValue());}
             return result;
         }catch(Exception e){return Sapi.object().put("blocked",true);}}
@@ -77,7 +78,7 @@ public final class JavaDriver {
             ExecutorService pool = Executors.newFixedThreadPool(8);
             try {
                 List<Future<String>> jobs = new ArrayList<>(); for (int i = 0; i < 16; i++) jobs.add(pool.submit(() -> server.handle(c.get("wire").textValue())));
-                ObjectNode r = Sapi.object(); var wires = r.putArray("wires"); for (Future<String> job : jobs) wires.add(job.get()); return r;
+                ObjectNode r = Sapi.object(); com.fasterxml.jackson.databind.node.ArrayNode wires = r.putArray("wires"); for (Future<String> job : jobs) wires.add(job.get()); return r;
             } finally {pool.shutdown();}
         }
         if (action.equals("bad_registration")) {

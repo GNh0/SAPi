@@ -1,5 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
+    <TargetFramework />
+    <TargetFrameworks>net6.0;net8.0</TargetFrameworks>
     <Description>ASP.NET Core endpoint adapter for experimental SAPI/0.1.</Description>
     <PackageReadmeFile>PACKAGE.md</PackageReadmeFile>
   </PropertyGroup>

@@ -1,7 +1,7 @@
 # sapi-protocol
 
 Experimental SAPI/0.1 ESM reference SDK using Web Crypto; no Node import in the protocol modules.
-Node 20+ is the tested runtime family; browsers require a secure context and trusted code/key provisioning.
+Node 16+ is supported through native Web Crypto and a bounded HTTP fallback; browsers require a secure context and trusted code/key provisioning.
 Browser execution is not covered by the current automated tests.
 
 Public imports: `Codec`, `SecureServer`, `MemoryReplayStore`, `SapiError`, `b64`, `unb64`, `digest`.

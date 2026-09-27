@@ -1,3 +1,4 @@
+import {secureCrypto, hasOwn} from './platform.js';
 import {SapiError} from './errors.js';
 const encoder = new TextEncoder(), decoder = new TextDecoder('utf-8', {fatal: true, ignoreBOM: true});
 
@@ -67,6 +68,6 @@ export function parse(bytes) {
   const v = read(0); ws(); if (i !== s.length) throw new SapiError(); tree(v); return v;
 }
 export function exact(v, fields) {
-  if (!object(v) || Object.keys(v).length !== fields.length || fields.some(k => !Object.hasOwn(v, k))) throw new SapiError();
+  if (!object(v) || Object.keys(v).length !== fields.length || fields.some(k => !hasOwn(v, k))) throw new SapiError();
 }
-export async function digest(wire) { return b64(new Uint8Array(await crypto.subtle.digest('SHA-256', encoder.encode(wire)))); }
+export async function digest(wire) { return b64(new Uint8Array(await secureCrypto.subtle.digest('SHA-256', encoder.encode(wire)))); }

@@ -40,7 +40,7 @@ public sealed class Codec
         }
         catch { throw new SapiException(); }
     }
-    public static string Digest(string wire) => B64(SHA256.HashData(Encoding.ASCII.GetBytes(wire)));
+    public static string Digest(string wire) => B64(Runtime.Hash(Encoding.ASCII.GetBytes(wire)));
     public byte[] Derive(string kid, string direction)
     {
         if (direction != "req" && direction != "res") throw new SapiException();
@@ -48,10 +48,10 @@ public sealed class Codec
     }
     private byte[] Derive(string kid, string direction, KeyRecord record)
     {
-        var prk = HMACSHA256.HashData(Utf8.GetBytes("SAPI/0.1 HKDF-SHA-256"), record.Master);
+        var prk = Runtime.Hmac(Utf8.GetBytes("SAPI/0.1 HKDF-SHA-256"), record.Master);
         var info = Utf8.GetBytes($"SAPI/0.1|{Service}|{kid}|{direction}");
-        var input = new byte[info.Length + 1]; info.CopyTo(input, 0); input[^1] = 1;
-        return HMACSHA256.HashData(prk, input);
+        var input = new byte[info.Length + 1]; info.CopyTo(input, 0); input[input.Length - 1] = 1;
+        return Runtime.Hmac(prk, input);
     }
     public static JsonElement Parse(byte[] bytes) => JsonFormat.Parse(bytes);
     public static JsonElement Json(object value) => JsonFormat.Json(value);
@@ -100,10 +100,9 @@ public sealed class Codec
             ["sapi"] = "0.1", ["dir"] = direction, ["svc"] = Service, ["crit"] = new[] {"sapi", "dir", "svc"}
         };
         var protectedHeader = B64(JsonSerializer.SerializeToUtf8Bytes(header));
-        var iv = RandomNumberGenerator.GetBytes(12); var ciphertext = new byte[body.Length]; var tag = new byte[16];
-        using var aes = new AesGcm(Derive(kid, direction, record), 16);
-        aes.Encrypt(iv, body, ciphertext, tag, Encoding.ASCII.GetBytes(protectedHeader));
-        return string.Join('.', protectedHeader, "", B64(iv), B64(ciphertext), B64(tag));
+        var iv = Runtime.Random(12); var ciphertext = new byte[body.Length]; var tag = new byte[16];
+        Runtime.Encrypt(Derive(kid, direction, record), iv, body, ciphertext, tag, Encoding.ASCII.GetBytes(protectedHeader));
+        return string.Join(".", protectedHeader, "", B64(iv), B64(ciphertext), B64(tag));
     }
     public (string Kid, JsonElement Payload) Open(string wire, string direction)
     {
@@ -121,15 +120,14 @@ public sealed class Codec
             if (crit.ValueKind != JsonValueKind.Array || crit.GetArrayLength() != 3 || crit[0].GetString() != "sapi" || crit[1].GetString() != "dir" || crit[2].GetString() != "svc") throw new SapiException();
             var iv = UnB64(parts[2]); var cipher = UnB64(parts[3]); var tag = UnB64(parts[4]);
             if (iv.Length != 12 || tag.Length != 16 || cipher.Length > MaxBody) throw new SapiException();
-            var plain = new byte[cipher.Length]; using var aes = new AesGcm(Derive(kid, direction), 16);
-            aes.Decrypt(iv, cipher, tag, plain, Encoding.ASCII.GetBytes(parts[0]));
+            var plain = Runtime.Decrypt(Derive(kid, direction), iv, cipher, tag, Encoding.ASCII.GetBytes(parts[0]));
             var payload = Parse(plain); Validate(payload, direction); return (kid, payload);
         }
         catch { throw new SapiException(); }
     }
     public RequestContext Request(string kid, string operation, JsonElement data)
     {
-        var now = Now; var id = Convert.ToHexString(RandomNumberGenerator.GetBytes(16)).ToLowerInvariant();
+        var now = Now; var id = BitConverter.ToString(Runtime.Random(16)).Replace("-", "").ToLowerInvariant();
         var payload = Json(new Dictionary<string, object> { ["id"] = id, ["iat"] = now, ["exp"] = now + 60, ["op"] = operation, ["data"] = data });
         return new RequestContext(Seal(kid, "req", payload), kid, id);
     }

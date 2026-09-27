@@ -5,8 +5,16 @@ namespace SApi.Protocol;
 
 public sealed class SecureServer
 {
-    private sealed record Operation(string Scope, Schema Input, Schema Output,
-        Func<KeyRecord, JsonElement, bool> Policy, Func<KeyRecord, JsonElement, JsonElement> Handler, int Requests, int Period);
+    private sealed class Operation
+    {
+        internal readonly string Scope; internal readonly Schema Input, Output;
+        internal readonly Func<KeyRecord, JsonElement, bool> Policy;
+        internal readonly Func<KeyRecord, JsonElement, JsonElement> Handler;
+        internal readonly int Requests, Period;
+        internal Operation(string scope, Schema input, Schema output, Func<KeyRecord, JsonElement, bool> policy,
+            Func<KeyRecord, JsonElement, JsonElement> handler, int requests, int period)
+        {Scope=scope;Input=input;Output=output;Policy=policy;Handler=handler;Requests=requests;Period=period;}
+    }
     private readonly Dictionary<string, Operation> operations = new(StringComparer.Ordinal);
     private readonly IReplayStore replay;
     private readonly Codec codec;

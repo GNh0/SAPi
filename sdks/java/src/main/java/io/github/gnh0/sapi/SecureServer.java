@@ -24,7 +24,7 @@ public final class SecureServer {
     public void register(String name,String scope,JsonNode input,JsonNode output,BiPredicate<KeyRecord,JsonNode> policy,BiFunction<KeyRecord,JsonNode,JsonNode> handler,int requests,int period) {
         if (!name(name) || !name(scope) || policy == null || handler == null || requests<1 || requests>10000 || period<1 || period>3600 || operations.putIfAbsent(name,new Operation(scope,input,output,policy,handler,requests,period))!=null) throw new IllegalArgumentException("operation, schemas, policy, handler and bounded rate required");
     }
-    public JsonNode inventory() {var value=object().arrayNode(); operations.keySet().stream().sorted().forEach(name -> {Operation o=operations.get(name);value.add(object().put("name",name).put("scope",o.scope).put("requests",o.requests).put("period",o.period));});return value;}
+    public JsonNode inventory() {com.fasterxml.jackson.databind.node.ArrayNode value=object().arrayNode(); operations.keySet().stream().sorted().forEach(name -> {Operation o=operations.get(name);value.add(object().put("name",name).put("scope",o.scope).put("requests",o.requests).put("period",o.period));});return value;}
     public String handle(String wire) {
         Opened opened = codec.open(wire, "req"); JsonNode request = opened.payload; KeyRecord principal = codec.principal(opened.kid); long now = codec.now();
         java.util.function.Function<JsonNode, String> finish = codec.prepareResponse(opened.kid);
@@ -41,7 +41,7 @@ public final class SecureServer {
             JsonNode result = o.handler.apply(principal, data);
             if (result == null || !result.isObject() || !o.output.validate(result) || encode(result).length > MAX_BODY - 512) throw new SapiException();
             response.put("ok", true); response.set("data", result);
-        } catch (SapiException e) { response.put("error", Set.of("replay", "replay_capacity", "rate_limited", "rate_capacity", "unknown_operation", "forbidden", "invalid_input").contains(e.code) ? e.code : "internal_error"); }
+        } catch (SapiException e) { response.put("error", Legacy.set("replay", "replay_capacity", "rate_limited", "rate_capacity", "unknown_operation", "forbidden", "invalid_input").contains(e.code) ? e.code : "internal_error"); }
         catch (Exception e) { response.put("error", "internal_error"); }
         return finish.apply(response);
     }

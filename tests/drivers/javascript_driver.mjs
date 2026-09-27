@@ -4,6 +4,7 @@ import {exchange} from '../../sdks/javascript/src/http.js';
 import {StateClient} from '../../sdks/javascript/src/state-node.js';
 let codec, server, state, executions = 0, contexts = new Map();
 async function invoke(c) {
+  if (c.action === "runtime") return {runtime:"Node.js",version:process.versions.node};
   if (c.action === 'init') {
     const keys = Object.fromEntries(Object.entries(c.keys).map(([kid, v]) => [kid, {master: unb64(v.key), subject: v.subject, scopes: v.scopes}]));
     state = c.state ? new StateClient(c.state.url, {caFile: c.state.ca_file, certificate: c.state.certificate, privateKey: c.state.private_key, timeout: (c.state.timeout ?? 10) * 1000}) : null;

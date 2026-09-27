@@ -28,7 +28,7 @@ public final class Codec {
     public long now() { return clock.getAsLong(); }
     public KeyRecord principal(String kid) { return keys.get(service, kid); }
     public byte[] derive(String kid, String direction) {
-        if (!Set.of("req", "res").contains(direction)) throw new SapiException();
+        if (!Legacy.set("req", "res").contains(direction)) throw new SapiException();
         return derive(kid, direction, principal(kid));
     }
     private byte[] derive(String kid, String direction, KeyRecord record) {
@@ -55,7 +55,7 @@ public final class Codec {
         if (expiry - issued < 1 || expiry - issued > 60 || issued > now + 5 || now >= expiry) throw new SapiException();
     }
     public String seal(String kid, String direction, JsonNode payload) {
-        if (!Set.of("req", "res").contains(direction)) throw new SapiException(); validate(payload, direction);
+        if (!Legacy.set("req", "res").contains(direction)) throw new SapiException(); validate(payload, direction);
         byte[] body = encode(payload); if (body.length > MAX_BODY) throw new SapiException();
         return sealReserved(kid, direction, body, keys.reserve(service, kid, direction));
     }
@@ -81,7 +81,7 @@ public final class Codec {
     }
     public Opened open(String wire, String direction) {
         try {
-            if (wire == null || wire.length() > MAX_WIRE || !Set.of("req", "res").contains(direction)) throw new SapiException();
+            if (wire == null || wire.length() > MAX_WIRE || !Legacy.set("req", "res").contains(direction)) throw new SapiException();
             for (int i = 0; i < wire.length(); i++) if (wire.charAt(i) > 127) throw new SapiException();
             String[] parts = wire.split("\\.", -1); if (parts.length != 5 || !parts[1].isEmpty()) throw new SapiException();
             byte[] header = unb64(parts[0]); if (header.length > 1024) throw new SapiException(); JsonNode h = parse(header);

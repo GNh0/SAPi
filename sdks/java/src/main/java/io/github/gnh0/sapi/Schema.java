@@ -23,24 +23,24 @@ public final class Schema {
         if (++nodes>256 || depth>16 || s==null || !s.isObject() || !s.has("type") || !s.get("type").isTextual()) throw new IllegalArgumentException("bounded schema required");
         Set<String> allowed;
         switch(type(s)) {
-            case "object": allowed=Set.of("properties","optional"); break;
-            case "array": allowed=Set.of("items","minItems","maxItems"); break;
-            case "string": allowed=Set.of("minBytes","maxBytes","format","enum"); break;
-            case "integer": case "number": allowed=Set.of("min","max"); break;
-            case "boolean": case "null": allowed=Set.of(); break;
+            case "object": allowed=Legacy.set("properties","optional"); break;
+            case "array": allowed=Legacy.set("items","minItems","maxItems"); break;
+            case "string": allowed=Legacy.set("minBytes","maxBytes","format","enum"); break;
+            case "integer": case "number": allowed=Legacy.set("min","max"); break;
+            case "boolean": case "null": allowed=Legacy.set(); break;
             default: throw new IllegalArgumentException("unsupported schema");
         }
         s.fieldNames().forEachRemaining(k -> {if (!k.equals("type") && !allowed.contains(k)) throw new IllegalArgumentException("unsupported schema property");});
         switch(type(s)) {
             case "object":
                 JsonNode props=s.get("properties"); if (props==null||!props.isObject()||props.size()>64) throw new IllegalArgumentException("safe properties required");
-                props.fieldNames().forEachRemaining(k -> {if (!FIELD.matcher(k).matches() || Set.of("constructor","prototype","__proto__").contains(k)) throw new IllegalArgumentException("safe properties required");});
+                props.fieldNames().forEachRemaining(k -> {if (!FIELD.matcher(k).matches() || Legacy.set("constructor","prototype","__proto__").contains(k)) throw new IllegalArgumentException("safe properties required");});
                 if (s.has("optional")) {JsonNode opt=s.get("optional"); Set<String> seen=new HashSet<>(); if (!opt.isArray()) throw new IllegalArgumentException("invalid optional"); for (JsonNode k:opt) if (!k.isTextual() || !props.has(k.textValue()) || !seen.add(k.textValue())) throw new IllegalArgumentException("invalid optional");}
                 for (JsonNode child:props) compile(child,depth+1); break;
             case "array": bounds(s,"minItems","maxItems",16,64); compile(s.get("items"),depth+1); break;
             case "string":
                 bounds(s,"minBytes","maxBytes",4096,65536);
-                if (s.has("format") && (!s.get("format").isTextual() || !Set.of("text","identifier","uuid").contains(s.get("format").textValue()))) throw new IllegalArgumentException("unsupported format");
+                if (s.has("format") && (!s.get("format").isTextual() || !Legacy.set("text","identifier","uuid").contains(s.get("format").textValue()))) throw new IllegalArgumentException("unsupported format");
                 if (s.has("enum")) {JsonNode values=s.get("enum"); Set<String> seen=new HashSet<>(); if (!values.isArray()||values.size()<1||values.size()>64) throw new IllegalArgumentException("invalid enum"); for (JsonNode v:values) if (!v.isTextual()||!stringValid(s,v.textValue())||!seen.add(v.textValue())) throw new IllegalArgumentException("invalid enum");} break;
             case "integer": case "number":
                 double a=number(s,"min",-SAFE),b=number(s,"max",SAFE); if (!Double.isFinite(a)||!Double.isFinite(b)||Math.abs(a)>SAFE||Math.abs(b)>SAFE||a>b||(type(s).equals("integer")&&(!integer(a)||!integer(b)))) throw new IllegalArgumentException("invalid numeric bounds"); break;

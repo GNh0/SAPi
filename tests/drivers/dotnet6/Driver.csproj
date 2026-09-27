@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType><TargetFramework>net6.0</TargetFramework><LangVersion>12.0</LangVersion>
+    <ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable><AssemblyName>SApi.Core6Driver</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../dotnet/Program.cs" Link="Program.cs" />
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <ProjectReference Include="../../../sdks/dotnet/SApi.Protocol/SApi.Protocol.csproj" />
+    <ProjectReference Include="../../../sdks/dotnet/SApi.AspNetCore/SApi.AspNetCore.csproj" />
+  </ItemGroup>
+</Project>

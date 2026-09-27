@@ -12,7 +12,7 @@ public static class EndpointExtensions
     {
         return endpoints.MapPost("/sapi", async (HttpContext context) =>
         {
-            context.Response.Headers.CacheControl = "no-store";
+            context.Response.Headers["Cache-Control"] = "no-store";
             if (context.Request.ContentType != "application/sapi+jwe" || context.Request.QueryString.HasValue ||
                 context.Request.Headers.ContainsKey("Authorization") || context.Request.ContentLength > Codec.MaxWire)
             { context.Response.StatusCode = 400; return; }

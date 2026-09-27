@@ -1,5 +1,42 @@
 # 검증 기록
 
+## alpha.4 구버전 호환
+
+2026-09-28(KST) 최종 소스로 Windows 메시지 **486/486**, 영속 상태 **78/78**, 처리 보안 **57/57**, 애플리케이션 **18/18**이 통과했습니다. Python 3.9의 주소 정책 10개와 프레임워크용 타입 정보 해석도 검사했습니다. 패키지 **12개**를 생성하고 별도 프로젝트의 소비 **9종**을 통과했습니다. SDK·서비스 소스 87개 전체의 실행 전후 SHA-256을 비교하며, 패키징도 검증한 전체 소스 목록과 해시의 일치를 요구합니다.
+
+| 대상 | 직접 실행한 환경 |
+| --- | --- |
+| Python SDK | Python 3.9.13 / cryptography 50.0.1 |
+| JavaScript SDK | Node.js 16.0.0 |
+| Java SDK | Temurin 1.8.0_504, Java 8 bytecode |
+| .NET SDK·ASP.NET Core | .NET 6.0.36 / 8.0.22 |
+| .NET Framework SDK·ASP.NET | 4.6.2 reference assemblies로 빌드, 설치된 Windows CLR 4.x에서 실행 |
+| 상태·애플리케이션 서비스 | Python 3.10.4 |
+
+.NET Framework 4.6.2 원본 설치 환경을 별도로 실행한 결과는 아닙니다. ASP.NET 패키지의 라우트 등록과 SDK 소비를 실행했으며 IIS 호스팅 시험은 포함하지 않습니다. .NET Standard 2.0 패키지의 DLL은 .NET 6 소비 프로젝트에서 사용합니다. Python의 배포 최소 조건은 3.9.2이며 로컬 실행은 3.9.13에서 확인했습니다.
+
+검사는 기존 보안 규칙을 그대로 사용해 등록된 6개 구현의 36개 요청·응답 조합, HTTP·HTTPS, .NET 6/8 Kestrel, 실제 mTLS 상태 서비스, 재전송·키 수명·입력·권한·SQL·업무 거래를 확인합니다. 부분 HTTP 본문이 중단되는 경우에도 호출자의 전체 제한 시간 안에서 종료하는 회귀를 포함합니다.
+
+- [구버전 런타임과 검사 집계](../tests/results/alpha4/compatibility.json)
+- [메시지 결과](../tests/results/alpha4/verification.json)
+- [영속 상태 결과](../tests/results/alpha4/state-verification.json)
+- [처리 보안 결과](../tests/results/alpha4/security-verification.json)
+- [애플리케이션 결과](../tests/results/alpha4/application-verification.json)
+- [패키지와 소스 해시](../tests/results/alpha4/packages.json)
+- [별도 프로젝트 패키지 소비](../tests/results/alpha4/package-smoke.json)
+- [의존성 공지 조회](../tests/results/alpha4/dependency-audit.json)
+- [분리된 에이전트 소스 검토](../tests/results/alpha4/compatibility-review-agent.md)
+
+구버전 재현은 현대 Python 빌드/서비스 환경과 SDK 런타임을 구분합니다. `SAPI_PYTHON`, `SAPI_NODE`, `SAPI_JAVA`, `SAPI_JAVAC`로 SDK 실행 파일을 지정하고, 해당 Python에서 설치한 의존성 경로를 `SAPI_SDK_DEPS`로 지정한 뒤 실행합니다.
+
+```text
+python tools/verify_compatibility.py --work-dir /absolute/scratch/sapi
+python tools/package.py --work-dir /absolute/scratch/sapi --output-dir /absolute/path/dist
+python tools/smoke_packages.py --work-dir /absolute/scratch/sapi --package-dir /absolute/path/dist
+```
+
+## alpha.3 이전 실행
+
 2026-09-27 Windows에서 `alpha.3` 소스의 메시지 **292/292**, 영속 상태 **50/50**, 처리 보안 **31/31**, 애플리케이션 **14/14**가 통과했습니다. 패키지 **11개**를 생성하고 별도 프로젝트의 소비 **6종**을 실행했습니다. OSV의 정확한 의존성 조회는 **17개, 공지 발견 0건**입니다.
 
 같은 구현 커밋 [`118efb9`](https://github.com/GNh0/SAPi/commit/118efb9da231a45a239cb382a0ecb63a2bf5dd4d)의 [GitHub CI](https://github.com/GNh0/SAPi/actions/runs/36310806375)는 세 작업 모두 통과했습니다. 내려받은 보고서의 SDK·서비스 소스 해시 79개와 네 검증 보고서·패키지 manifest·실제 패키지 SHA-256을 대조했습니다.
@@ -86,4 +123,4 @@ python tools/smoke_packages.py --work-dir /absolute/scratch/sapi --package-dir /
 
 전용 loopback PostgreSQL 시험 DB가 있을 때 `verify_state.py`와 `verify_application.py`에 `--postgres "postgresql://...@127.0.0.1/...?... "`를 추가합니다. 이 시험은 해당 시험 DB의 SAPI 테이블을 초기화하므로 운영 DB를 지정하지 않습니다.
 
-[GitHub CI](https://github.com/GNh0/SAPi/actions/workflows/conformance.yml)는 Windows·Ubuntu·PostgreSQL 작업과 실행별 결과 파일 및 패키지를 보관합니다. 실제 배포의 전원 장애, 복제본 저장소의 내구성, 업무 거래의 멱등성, 일반 브라우저 실행과 모든 웹 프레임워크를 포괄하는 시험은 이 기록과 구분합니다.
+[GitHub CI](https://github.com/GNh0/SAPi/actions/workflows/conformance.yml)는 Windows·Ubuntu·PostgreSQL 및 구버전 Windows·Ubuntu 작업과 실행별 결과 파일 및 패키지를 보관합니다. 실제 배포의 전원 장애, 복제본 저장소의 내구성, 업무 거래의 멱등성, 일반 브라우저 실행과 모든 웹 프레임워크를 포괄하는 시험은 이 기록과 구분합니다.

@@ -1,3 +1,4 @@
+from __future__ import annotations
 """SAPI/0.1 public SDK API. Read spec/SECURITY.md before deployment."""
 from .codec import Codec
 from .errors import SapiError

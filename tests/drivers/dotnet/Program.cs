@@ -1,14 +1,18 @@
 using System.Text;
+#if !LEGACY
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Logging;
 using SApi.AspNetCore;
+#endif
 using System.Text.Json;
 using System.Security.Cryptography.X509Certificates;
 using SApi.Protocol;
 
 Console.InputEncoding = Encoding.UTF8; Console.OutputEncoding = new UTF8Encoding(false);
+#if !LEGACY
 WebApplication? application = null;
+#endif
 Codec? codec = null; SecureServer? server = null; var contexts = new Dictionary<string, RequestContext>(); var executions = 0;
 StateClient? state = null;
 object Invoke(JsonElement c)
@@ -16,6 +20,8 @@ object Invoke(JsonElement c)
     string Text(string key) => c.GetProperty(key).GetString()!;
     string Slot() => c.TryGetProperty("slot", out var s) ? s.GetString()! : "default";
     var action = Text("action");
+    if (action == "runtime") return new {runtime=typeof(object).Assembly.GetName().Name,version=Environment.Version.ToString(),library=typeof(Codec).Assembly.GetName().Version!.ToString()};
+    if (action == "runtime") return new {runtime=typeof(object).Assembly.GetName().Name,version=Environment.Version.ToString(),library=typeof(Codec).Assembly.GetName().Version!.ToString()};
     if (action == "init")
     {
         var keys = new Dictionary<string, KeyRecord>();
@@ -35,11 +41,6 @@ object Invoke(JsonElement c)
         IReplayStore store = c.TryGetProperty("store", out var storeKind) && storeKind.GetString() == "fail" ? new BrokenStore() : new MemoryReplayStore(c.TryGetProperty("capacity", out var cap) ? cap.GetInt32() : 10000);
         if (state != null) store = state;
         server = new SecureServer(codec, store); executions = 0; contexts.Clear();
-        bool OneString(JsonElement d, string field)
-        {
-            var count = 0; foreach (var _ in d.EnumerateObject()) count++;
-            return count == 1 && d.TryGetProperty(field, out var v) && v.ValueKind == JsonValueKind.String;
-        }
         JsonElement Counted(KeyRecord p, JsonElement d) { Interlocked.Increment(ref executions); return d; }
         var echo=Codec.Json(new {type="object",properties=new {message=new {type="string",maxBytes=4096}}});
         var own=Codec.Json(new {type="object",properties=new {owner=new {type="string"}}});
@@ -52,15 +53,16 @@ object Invoke(JsonElement c)
         server.Register("admin","admin",empty,empty,(p,d)=>true,Counted);
         return new {ready = true};
     }
-    if (action == "derive") return new {key = Convert.ToHexString(codec!.Derive(Text("kid"), Text("dir"))).ToLowerInvariant()};
+    if (action == "derive") return new {key = BitConverter.ToString(codec!.Derive(Text("kid"), Text("dir"))).Replace("-", "").ToLowerInvariant()};
     if (action == "seal") return new {wire = codec!.Seal(Text("kid"), Text("dir"), c.GetProperty("payload"))};
     if (action == "open") {var o = codec!.Open(Text("wire"), Text("dir")); return new {kid = o.Kid, payload = o.Payload};}
     if (action == "request") {var ctx = c.TryGetProperty("subject", out var subject) ? state!.Request(codec!, subject.GetString()!, Text("op"), c.GetProperty("data")) : codec!.Request(Text("kid"), Text("op"), c.GetProperty("data")); contexts[Slot()] = ctx; return new {wire = ctx.Wire};}
     if (action == "accept") return new {payload = codec!.AcceptResponse(contexts[Slot()], Text("wire"))};
     if (action == "handle") return new {wire = server!.Handle(Text("wire"))};
+#if !LEGACY
     if (action == "http_server_start")
     {
-        var builder = WebApplication.CreateSlimBuilder();
+        var builder = WebApplication.CreateBuilder();
         builder.Logging.ClearProviders();
         builder.WebHost.UseKestrel().UseUrls("http://127.0.0.1:0");
         application = builder.Build();
@@ -75,11 +77,16 @@ object Invoke(JsonElement c)
         application.DisposeAsync().AsTask().GetAwaiter().GetResult(); application = null;
         return new {stopped = true};
     }
+#endif
     if (action == "http")
     {
         try
         {
+#if NETFRAMEWORK
+            using var ca = c.TryGetProperty("ca", out var caFile) ? new X509Certificate2(new Org.BouncyCastle.X509.X509CertificateParser().ReadCertificate(File.ReadAllBytes(caFile.GetString()!)).GetEncoded()) : null;
+#else
             using var ca = c.TryGetProperty("ca", out var caFile) ? X509Certificate2.CreateFromPem(File.ReadAllText(caFile.GetString()!)) : null;
+#endif
             return new {wire = HttpBinding.ExchangeAsync(new Uri(Text("url")), Text("wire"), ca, deadline: TimeSpan.FromMilliseconds(c.TryGetProperty("timeout_ms", out var timeout) ? timeout.GetDouble() : 30000)).GetAwaiter().GetResult()};
         }
         catch {return new {error = "transport_error"};}
@@ -119,4 +126,4 @@ while ((line = Console.ReadLine()) != null)
     catch { output = new {error = "invalid_message"}; }
     Console.WriteLine(JsonSerializer.Serialize(output));
 }
-sealed class BrokenStore : IReplayStore { public bool Claim(string key, long expiry, long now) => throw new IOException("storage unavailable"); }
+sealed class BrokenStore : IReplayStore { public bool Claim(string key, long expiry, long now) => throw new IOException("storage unavailable"); public bool Admit(string service,string kid,string subject,string operation,long now,int requests=60,int period=60) => throw new IOException("storage unavailable"); }

@@ -34,7 +34,7 @@ internal static class JsonFormat
             case JsonValueKind.String: ValidString(value.GetString()!); break;
             case JsonValueKind.Number:
                 var number = value.GetDouble();
-                if (!double.IsFinite(number) || (Math.Floor(number) == number && Math.Abs(number) > 9007199254740991d)) throw new SapiException();
+                if (!Runtime.Finite(number) || (Math.Floor(number) == number && Math.Abs(number) > 9007199254740991d)) throw new SapiException();
                 break;
             case JsonValueKind.True: case JsonValueKind.False: case JsonValueKind.Null: break;
             default: throw new SapiException();
@@ -63,7 +63,7 @@ internal static class JsonFormat
     {
         if (value.ValueKind != JsonValueKind.Number) throw new SapiException();
         var number = value.GetDouble();
-        if (!double.IsFinite(number) || number < 0 || number > 9007199254740991d || Math.Floor(number) != number) throw new SapiException();
+        if (!Runtime.Finite(number) || number < 0 || number > 9007199254740991d || Math.Floor(number) != number) throw new SapiException();
         return (long)number;
     }
 }

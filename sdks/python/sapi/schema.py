@@ -1,3 +1,4 @@
+from __future__ import annotations
 """Closed, bounded application schemas shared by every SAPi implementation."""
 import copy
 import math

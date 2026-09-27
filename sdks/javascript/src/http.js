@@ -1,10 +1,12 @@
 // Works with a trusted fetch implementation. Browser mixed-content/CORS rules still apply.
 import {SapiError} from './errors.js';
+import {isNode} from './platform.js';
 export async function exchange(url, wire, {timeout = 30000} = {}) {
   const address = new URL(url);
   if (!['http:', 'https:'].includes(address.protocol) || address.pathname !== '/sapi' || address.search || address.hash || address.username || address.password) throw new TypeError('HTTP(S) /sapi URL required');
   if (typeof wire !== 'string' || wire.length > 131072 || /[^\x00-\x7f]/.test(wire)) throw new SapiError();
   if (!Number.isFinite(timeout) || timeout <= 0) throw new TypeError('positive timeout required');
+  if (isNode && typeof globalThis.fetch !== 'function') return (await import('./http-node.js')).exchangeNode(address,wire,timeout);
   const controller = new AbortController(); let reader, timer;
   const deadline = new Promise((_, reject) => { timer = setTimeout(() => {
     reject(new SapiError('transport_error')); controller.abort();

@@ -1,3 +1,4 @@
+from __future__ import annotations
 """Bound line-oriented HTTP metadata independently of the bounded message body."""
 from .errors import SapiError
 

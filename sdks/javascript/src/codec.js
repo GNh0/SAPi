@@ -1,3 +1,4 @@
+import {secureCrypto} from './platform.js';
 // Web Crypto only; usable wherever a trusted Web Crypto runtime is available.
 import {MAX_WIRE, MAX_BODY, NAME, HEADER_KEYS} from './constants.js';
 import {SapiError} from './errors.js';
@@ -21,8 +22,8 @@ export class Codec {
     return this.#derive(kid, direction, await this.#provider.get(this.service, kid));
   }
   async #derive(kid, direction, p) {
-    const key = await crypto.subtle.importKey('raw', p.master, 'HKDF', false, ['deriveBits']);
-    return new Uint8Array(await crypto.subtle.deriveBits({name: 'HKDF', hash: 'SHA-256', salt: encoder.encode('SAPI/0.1 HKDF-SHA-256'),
+    const key = await secureCrypto.subtle.importKey('raw', p.master, 'HKDF', false, ['deriveBits']);
+    return new Uint8Array(await secureCrypto.subtle.deriveBits({name: 'HKDF', hash: 'SHA-256', salt: encoder.encode('SAPI/0.1 HKDF-SHA-256'),
       info: encoder.encode(`SAPI/0.1|${this.service}|${kid}|${direction}`)}, key, 256));
   }
   validate(p, direction) {
@@ -55,9 +56,9 @@ export class Codec {
   }
   async #sealReserved(kid, direction, body, record) {
     const header = {alg: 'dir', enc: 'A256GCM', typ: 'sapi+jwe', kid, sapi: '0.1', dir: direction, svc: this.service, crit: ['sapi', 'dir', 'svc']};
-    const protectedHeader = b64(encode(header)), iv = crypto.getRandomValues(new Uint8Array(12));
-    const key = await crypto.subtle.importKey('raw', await this.#derive(kid, direction, record), 'AES-GCM', false, ['encrypt']);
-    const encrypted = new Uint8Array(await crypto.subtle.encrypt({name: 'AES-GCM', iv, additionalData: encoder.encode(protectedHeader), tagLength: 128}, key, body));
+    const protectedHeader = b64(encode(header)), iv = secureCrypto.getRandomValues(new Uint8Array(12));
+    const key = await secureCrypto.subtle.importKey('raw', await this.#derive(kid, direction, record), 'AES-GCM', false, ['encrypt']);
+    const encrypted = new Uint8Array(await secureCrypto.subtle.encrypt({name: 'AES-GCM', iv, additionalData: encoder.encode(protectedHeader), tagLength: 128}, key, body));
     return [protectedHeader, '', b64(iv), b64(encrypted.slice(0, -16)), b64(encrypted.slice(-16))].join('.');
   }
   async open(wire, direction) {
@@ -70,13 +71,13 @@ export class Codec {
       const iv = unb64(parts[2]), cipher = unb64(parts[3]), tag = unb64(parts[4]);
       if (iv.length !== 12 || tag.length !== 16 || cipher.length > MAX_BODY) throw new SapiError();
       const joined = new Uint8Array(cipher.length + 16); joined.set(cipher); joined.set(tag, cipher.length);
-      const key = await crypto.subtle.importKey('raw', await this.derive(h.kid, direction), 'AES-GCM', false, ['decrypt']);
-      const plain = await crypto.subtle.decrypt({name: 'AES-GCM', iv, additionalData: encoder.encode(parts[0]), tagLength: 128}, key, joined);
+      const key = await secureCrypto.subtle.importKey('raw', await this.derive(h.kid, direction), 'AES-GCM', false, ['decrypt']);
+      const plain = await secureCrypto.subtle.decrypt({name: 'AES-GCM', iv, additionalData: encoder.encode(parts[0]), tagLength: 128}, key, joined);
       const payload = parse(new Uint8Array(plain)); this.validate(payload, direction); return {kid: h.kid, payload};
     } catch { throw new SapiError(); }
   }
   async request(kid, operation, data) {
-    const now = this.clock(), id = Array.from(crypto.getRandomValues(new Uint8Array(16)), b => b.toString(16).padStart(2, '0')).join('');
+    const now = this.clock(), id = Array.from(secureCrypto.getRandomValues(new Uint8Array(16)), b => b.toString(16).padStart(2, '0')).join('');
     const wire = await this.seal(kid, 'req', {id, iat: now, exp: now + 60, op: operation, data});
     return {wire, kid, id, consumed: false, busy: false};
   }

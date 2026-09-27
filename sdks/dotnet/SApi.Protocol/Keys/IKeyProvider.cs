@@ -14,7 +14,7 @@ public sealed class StaticKeyProvider : IKeyProvider
     public StaticKeyProvider(IReadOnlyDictionary<string, KeyRecord> records)
     {
         if (records.Count == 0 || records.Keys.Any(k => !Codec.ValidName(k))) throw new ArgumentException("valid keys required");
-        keys = new(records, StringComparer.Ordinal);
+        keys = new(StringComparer.Ordinal); foreach (var record in records) keys.Add(record.Key, record.Value);
     }
     public KeyRecord Get(string service, string kid) => keys.TryGetValue(kid, out var value) ? value : throw new SapiException();
     public KeyRecord Reserve(string service, string kid, string direction)

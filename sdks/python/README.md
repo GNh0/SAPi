@@ -1,6 +1,6 @@
 # sapi-protocol
 
-Experimental SAPI/0.1 PSK reference SDK for Python 3.10+.
+Experimental SAPI/0.1 PSK reference SDK for Python 3.9.2+.
 Public API: `Codec`, `KeyRecord`, `Principal`, `RequestContext`, `SecureServer`, `ReplayStore`, `MemoryReplayStore`, `SapiError`.
 HTTP/HTTPS binding: `from sapi.http import exchange`.
 

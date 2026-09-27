@@ -1,4 +1,5 @@
-from typing import Callable
+from __future__ import annotations
+from typing import Callable, Optional
 from .codec import Codec
 from .constants import NAME, MAX_BODY
 from .errors import SapiError
@@ -7,7 +8,7 @@ from .serialization import encode, digest
 from .schema import Schema
 
 class SecureServer:
-    def __init__(self, codec: Codec, replay_store: ReplayStore | None = None):
+    def __init__(self, codec: Codec, replay_store: Optional[ReplayStore] = None):
         self.codec = codec
         self.replay = replay_store if replay_store is not None else MemoryReplayStore()
         self.operations = {}

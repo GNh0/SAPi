@@ -1,3 +1,4 @@
+import {hasOwn} from './platform.js';
 const identifier = /^[A-Za-z][A-Za-z0-9_]{0,63}(?![\s\S])/;
 const scalar = value => {
   if (value === null || typeof value === 'boolean' || (typeof value === 'string' && new TextEncoder().encode(value).length <= 65536) || (typeof value === 'number' && Number.isFinite(value) && Math.abs(value) <= Number.MAX_SAFE_INTEGER)) return value;
@@ -26,7 +27,7 @@ export class OwnedSql {
   #plan(text,values) {return new SqlPlan(text,values,token);}
   select(p,id) {return this.#plan(`SELECT ${this.#read.join(',')} FROM ${this.#table} WHERE ${this.#owner}=? AND ${this.#id}=?`,this.#identity(p,id));}
   delete(p,id) {return this.#plan(`DELETE FROM ${this.#table} WHERE ${this.#owner}=? AND ${this.#id}=?`,this.#identity(p,id));}
-  #changes(values) {if (!values || typeof values!=='object' || Array.isArray(values) || !Object.keys(values).length || Object.keys(values).some(n=>!this.#write.includes(n))) throw new TypeError('undeclared or immutable column');return this.#write.filter(n=>Object.hasOwn(values,n)).map(n=>[n,scalar(values[n])]);}
+  #changes(values) {if (!values || typeof values!=='object' || Array.isArray(values) || !Object.keys(values).length || Object.keys(values).some(n=>!this.#write.includes(n))) throw new TypeError('undeclared or immutable column');return this.#write.filter(n=>hasOwn(values,n)).map(n=>[n,scalar(values[n])]);}
   update(p,id,values) {const pairs=this.#changes(values);return this.#plan(`UPDATE ${this.#table} SET ${pairs.map(([n])=>n+'=?').join(',')} WHERE ${this.#owner}=? AND ${this.#id}=?`,[...pairs.map(([,v])=>v),...this.#identity(p,id)]);}
   insert(p,id,values) {const pairs=this.#changes(values),columns=[this.#owner,this.#id,...pairs.map(([n])=>n)];return this.#plan(`INSERT INTO ${this.#table} (${columns.join(',')}) VALUES (${columns.map(()=>'?').join(',')})`,[...this.#identity(p,id),...pairs.map(([,v])=>v)]);}
 }

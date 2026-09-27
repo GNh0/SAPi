@@ -21,7 +21,10 @@ ROOT=Path(__file__).resolve().parents[1]
 
 
 def main():
+    from implementations import source_hashes
+    snapshot=source_hashes(ROOT)
     parser=argparse.ArgumentParser();parser.add_argument("--work-dir",type=Path,required=True);parser.add_argument("--postgres")
+    parser.add_argument("--implementations", type=Path, default=ROOT/"tests/implementations.json")
     args=parser.parse_args();work=args.work_dir.resolve()
     paths=(work/"pydeps",ROOT/"sdks/python",ROOT/"services/state",ROOT/"services/application")
     for folder in paths:sys.path.insert(0,str(folder))
@@ -55,7 +58,7 @@ def main():
     owner=Principal("bob",frozenset(["orders_write"]))
     app.records.mutate("create","demo","orders",owner,{"id":"foreign","data":{"description":"private","quantity":1}},initial="created",write_phases=["created"])
     env=dict(os.environ,PYTHONPATH=os.pathsep.join(map(str,paths)),PYTHONDONTWRITEBYTECODE="1",DOTNET_CLI_TELEMETRY_OPTOUT="1",NODE_EXTRA_CA_CERTS=config["ca"])
-    commands=build_registry(ROOT,work,ROOT/"tests/implementations.json",run,env)
+    commands=build_registry(ROOT,work,args.implementations.resolve(),run,env,snapshot)
     clients={n:Driver(n+" application client",c,env) for n,c in commands.items()}
     settings={"url":app_config["state"]["url"],"ca_file":config["ca"],"certificate":str(Path(config["ca"]).parent/"client.pem"),"private_key":str(Path(config["ca"]).parent/"client.key")}
     cases=[];live=[]
@@ -161,7 +164,7 @@ def main():
             target={"origin":"https://public.example","path":"/","input":empty,"output":empty}
             protected=Egress({"allowed":target},timeout=.2)
             expect_failure(lambda:protected.fetch("http://169.254.169.254/",{}))
-            for ip in ("127.0.0.1","0.0.0.0","10.1.2.3","169.254.169.254","100.100.100.200","::1","fd00::1","fe80::1","::ffff:127.0.0.1","224.0.0.1","64:ff9b::a00:1","64:ff9b:1::a00:1","2002:7f00:1::","2001:4860:4860::8888%eth0"):
+            for ip in ("192.0.0.8","192.0.0.11","192.88.99.1","fec0::1","f000::1","3fff::1","::ffff:8.8.8.8","127.0.0.1","0.0.0.0","10.1.2.3","169.254.169.254","100.100.100.200","::1","fd00::1","fe80::1","::ffff:127.0.0.1","224.0.0.1","64:ff9b::a00:1","64:ff9b:1::a00:1","2002:7f00:1::","2001:4860:4860::8888%eth0"):
                 address=[(socket.AF_INET,socket.SOCK_STREAM,6,"",(ip,443))]
                 with patch.object(egress_module,"_lookup",return_value=address),patch.object(egress_module,"_connect") as connection:
                     expect_failure(lambda:protected.fetch("allowed",{}));assert connection.call_count==0,ip
@@ -248,6 +251,7 @@ def main():
             def addSuccess(self,test):super().addSuccess(test);self.passed.append(test.shortDescription())
         result=unittest.TextTestRunner(verbosity=1,resultclass=Result).run(unittest.TestSuite(cases))
         hashes={p.relative_to(ROOT).as_posix():hashlib.sha256(p.read_bytes()).hexdigest() for folder in (ROOT/"sdks",ROOT/"services") for p in folder.rglob("*") if p.is_file() and p.suffix in (".py",".cs",".java",".js",".toml",".xml",".json",".props",".csproj")}
+        hashes=commands.checked_hashes(ROOT)
         report={"utc":datetime.datetime.now(datetime.timezone.utc).isoformat(),"passed":len(result.passed),"total":result.testsRun,"failures":[t.shortDescription() for t,_ in result.failures+result.errors],"cases":result.passed,"implementations":list(commands),"backends":["sqlite"]+(["postgresql"] if args.postgres else []),"source_sha256":hashes}
         (work/"application-verification.json").write_text(json.dumps(report,indent=2)+"\n",encoding="utf-8",newline="\n")
         print(json.dumps({k:report[k] for k in ("passed","total","failures")}));return 0 if result.wasSuccessful() else 1

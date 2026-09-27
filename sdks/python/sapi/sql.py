@@ -1,3 +1,4 @@
+from __future__ import annotations
 """Tenant-bound SQL with fixed identifiers and bound values, never SQL from a request."""
 from dataclasses import dataclass
 import math

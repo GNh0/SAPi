@@ -1,3 +1,4 @@
+from __future__ import annotations
 """Declared HTTPS destinations with DNS pinning, bounded IO and closed JSON output."""
 import http.client
 import ipaddress
@@ -17,6 +18,12 @@ _dns_slots = threading.BoundedSemaphore(4)
 _lookup = socket.getaddrinfo
 _connect = socket.create_connection
 _translated = (ipaddress.ip_network("64:ff9b::/96"),ipaddress.ip_network("64:ff9b:1::/48"))
+_special_v4 = tuple(ipaddress.ip_network(n) for n in (
+    "0.0.0.0/8","10.0.0.0/8","100.64.0.0/10","127.0.0.0/8","169.254.0.0/16",
+    "172.16.0.0/12","192.0.0.0/24","192.0.2.0/24","192.88.99.0/24","192.168.0.0/16",
+    "198.18.0.0/15","198.51.100.0/24","203.0.113.0/24","224.0.0.0/4","240.0.0.0/4"))
+_unicast_v6 = ipaddress.ip_network("2000::/3")
+_special_v6 = tuple(ipaddress.ip_network(n) for n in ("2001::/23","2001:db8::/32","2002::/16","3fff::/20"))
 
 
 def _resolve(host, port, timeout):
@@ -34,8 +41,10 @@ def _resolve(host, port, timeout):
     for address in addresses:
         try: value = ipaddress.ip_address(address[4][0])
         except ValueError: raise SapiError("outbound_forbidden")
-        if not value.is_global or value.is_multicast or value.is_unspecified or (getattr(value,"ipv4_mapped",None) and not value.ipv4_mapped.is_global): raise SapiError("outbound_forbidden")
-        if isinstance(value,ipaddress.IPv6Address) and (value.scope_id or value.sixtofour or value.teredo or any(value in network for network in _translated)):
+        if not value.is_global or value.is_reserved or value.is_multicast or value.is_unspecified: raise SapiError("outbound_forbidden")
+        if isinstance(value,ipaddress.IPv4Address) and any(value in network for network in _special_v4):
+            raise SapiError("outbound_forbidden")
+        if isinstance(value,ipaddress.IPv6Address) and (value not in _unicast_v6 or value.is_site_local or value.scope_id or value.ipv4_mapped or value.sixtofour or value.teredo or any(value in network for network in _special_v6 + _translated)):
             raise SapiError("outbound_forbidden")
         ips.append(str(value))
     return ips[0]

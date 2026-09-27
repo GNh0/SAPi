@@ -22,7 +22,7 @@ public sealed class Schema
     }
     private static string Type(JsonElement s) => s.GetProperty("type").GetString()!;
     private static double Number(JsonElement s, string key, double fallback) => s.TryGetProperty(key, out var v) ? v.GetDouble() : fallback;
-    private static bool Integer(double n) => double.IsFinite(n) && Math.Abs(n) <= Safe && n == Math.Truncate(n);
+    private static bool Integer(double n) => Runtime.Finite(n) && Math.Abs(n) <= Safe && n == Math.Truncate(n);
     private static void Bounds(JsonElement s, string lower, string upper, double fallback, double cap)
     {
         var lo = Number(s, lower, 0); var hi = Number(s, upper, fallback);
@@ -55,7 +55,7 @@ public sealed class Schema
                 break;
             case "integer": case "number":
                 var lo = Number(s, "min", -Safe); var hi = Number(s, "max", Safe);
-                if (!double.IsFinite(lo) || !double.IsFinite(hi) || Math.Abs(lo) > Safe || Math.Abs(hi) > Safe || lo > hi || (Type(s) == "integer" && (!Integer(lo) || !Integer(hi)))) throw new ArgumentException("invalid numeric bounds");
+                if (!Runtime.Finite(lo) || !Runtime.Finite(hi) || Math.Abs(lo) > Safe || Math.Abs(hi) > Safe || lo > hi || (Type(s) == "integer" && (!Integer(lo) || !Integer(hi)))) throw new ArgumentException("invalid numeric bounds");
                 break;
         }
     }
@@ -73,11 +73,11 @@ public sealed class Schema
         {
             case "object":
                 if (v.ValueKind != JsonValueKind.Object) return false;
-                var props = s.GetProperty("properties"); var optional = s.TryGetProperty("optional", out var o) ? o.EnumerateArray().Select(k => k.GetString()!).ToHashSet(StringComparer.Ordinal) : [];
+                var props = s.GetProperty("properties"); var optional = s.TryGetProperty("optional", out var o) ? new HashSet<string>(o.EnumerateArray().Select(k => k.GetString()!), StringComparer.Ordinal) : [];
                 return v.EnumerateObject().All(p => props.TryGetProperty(p.Name, out var child) && Validate(child, p.Value)) && props.EnumerateObject().All(p => optional.Contains(p.Name) || v.TryGetProperty(p.Name, out _));
             case "array": return v.ValueKind == JsonValueKind.Array && v.GetArrayLength() >= Number(s, "minItems", 0) && v.GetArrayLength() <= Number(s, "maxItems", 16) && v.EnumerateArray().All(item => Validate(s.GetProperty("items"), item));
             case "string": return v.ValueKind == JsonValueKind.String && StringValid(s, v.GetString()!) && (!s.TryGetProperty("enum", out var values) || values.EnumerateArray().Any(x => x.GetString() == v.GetString()));
-            case "integer": case "number": return v.ValueKind == JsonValueKind.Number && double.IsFinite(v.GetDouble()) && (Type(s) != "integer" || Integer(v.GetDouble())) && v.GetDouble() >= Number(s, "min", -Safe) && v.GetDouble() <= Number(s, "max", Safe);
+            case "integer": case "number": return v.ValueKind == JsonValueKind.Number && Runtime.Finite(v.GetDouble()) && (Type(s) != "integer" || Integer(v.GetDouble())) && v.GetDouble() >= Number(s, "min", -Safe) && v.GetDouble() <= Number(s, "max", Safe);
             case "boolean": return v.ValueKind is JsonValueKind.True or JsonValueKind.False;
             default: return v.ValueKind == JsonValueKind.Null;
         }

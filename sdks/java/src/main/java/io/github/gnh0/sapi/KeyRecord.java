@@ -9,7 +9,7 @@ public final class KeyRecord {
     private final Set<String> scopes;
     public KeyRecord(byte[] master, String subject, Set<String> scopes) {
         if (master.length != 32 || !name(subject)) throw new IllegalArgumentException("key and subject required");
-        this.master = master.clone(); this.subject = subject; this.scopes = Set.copyOf(scopes);
+        this.master = master.clone(); this.subject = subject; this.scopes = Legacy.setCopy(scopes);
     }
     public boolean hasScope(String scope) { return scopes.contains(scope); }
 }

@@ -1,3 +1,6 @@
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "sdks/python"))
 """JSON-lines test harness; keys arrive via init, never via a bundled production default."""
 import concurrent.futures
 import json
@@ -16,6 +19,7 @@ executions = 0
 def invoke(command):
     global codec, server, contexts, executions, state
     action = command["action"]
+    if action == "runtime": return {"runtime": "Python", "version": sys.version.split()[0]}
     if action == "init":
         now = command.get("now")
         keys = {kid: KeyRecord(unb64(v["key"]), v["subject"], frozenset(v["scopes"])) for kid, v in command["keys"].items()}

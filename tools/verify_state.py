@@ -20,8 +20,11 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def main():
+    from implementations import source_hashes
+    snapshot=source_hashes(ROOT)
     parser = argparse.ArgumentParser(); parser.add_argument("--work-dir", type=Path, required=True)
     parser.add_argument("--postgres", help="explicit loopback test DSN")
+    parser.add_argument("--implementations", type=Path, default=ROOT/"tests/implementations.json")
     args = parser.parse_args(); work = args.work_dir.resolve()
     for path in (work / "pydeps", ROOT / "sdks/python", ROOT / "services/state"): sys.path.insert(0, str(path))
     from sapi import Codec, KeyRecord, SapiError
@@ -43,7 +46,7 @@ def main():
     actors = {v.role: v for v in acl.values()}; admin, service, client_actor = actors["admin"], actors["service"], actors["client"]
     env = dict(os.environ); env["PYTHONPATH"] = os.pathsep.join((str(work / "pydeps"), str(ROOT / "sdks/python"), str(ROOT / "services/state")))
     env["PYTHONDONTWRITEBYTECODE"] = "1"; env["DOTNET_CLI_TELEMETRY_OPTOUT"] = "1"
-    commands = build_registry(ROOT, work, ROOT / "tests/implementations.json", run, env)
+    commands = build_registry(ROOT, work, args.implementations.resolve(), run, env, snapshot)
     clients = {name: Driver(name + " managed client", command, env) for name, command in commands.items()}
     servers = {name: Driver(name + " managed server", command, env) for name, command in commands.items()}
     cases = []; serial = 0
@@ -423,6 +426,7 @@ def main():
             for path in folder.rglob("*"):
                 if path.is_file() and path.suffix in (".py", ".js", ".cs", ".java", ".toml", ".csproj", ".props", ".json", ".xml"):
                     hashes[path.relative_to(ROOT).as_posix()] = hashlib.sha256(path.read_bytes()).hexdigest()
+        hashes=commands.checked_hashes(ROOT)
         report = {"utc": datetime.datetime.now(datetime.timezone.utc).isoformat(), "passed": len(result.passed), "total": result.testsRun,
                   "failures": [test.shortDescription() for test, _ in result.failures + result.errors], "cases": result.passed,
                   "backends": ["sqlite"] + (["postgresql"] if args.postgres else []), "implementations": list(commands), "source_sha256": hashes}

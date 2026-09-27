@@ -23,6 +23,8 @@ ROOT = Path(__file__).resolve().parents[1]
 class Driver:
     def __init__(self, name, command, env):
         self.name = name
+        if env.get("SAPI_SDK_DEPS") and command[0] == env.get("SAPI_PYTHON"):
+            env = dict(env, PYTHONPATH=os.pathsep.join((env["SAPI_SDK_DEPS"], str(ROOT/"sdks/python"))))
         self.process = subprocess.Popen(command, cwd=ROOT, env=env, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                         stderr=subprocess.PIPE, text=True, encoding="utf-8", bufsize=1)
         self.lines = queue.Queue()
@@ -100,6 +102,8 @@ def certificates(folder):
 
 
 def main():
+    from implementations import source_hashes
+    snapshot=source_hashes(ROOT)
     parser = argparse.ArgumentParser()
     parser.add_argument("--work-dir", type=Path, required=True)
     parser.add_argument("--implementations", type=Path, default=ROOT / "tests" / "implementations.json",
@@ -119,7 +123,7 @@ def main():
     env["DOTNET_CLI_TELEMETRY_OPTOUT"] = "1"
     env["DOTNET_NOLOGO"] = "1"
     from implementations import build_registry
-    commands = build_registry(ROOT, work, args.implementations.resolve(), run, env)
+    commands = build_registry(ROOT, work, args.implementations.resolve(), run, env, snapshot)
     ca_file = certificates(work / "certificates")
     env["NODE_EXTRA_CA_CERTS"] = str(ca_file)
     clients, servers, live = {}, {}, []
@@ -341,6 +345,19 @@ def main():
                             assert server.call(action="stats") == {"executions": 1}
                     add(f"{scheme}: {c_name} -> {s_name} native HTTP client and encrypted handler", http_test)
         registry = json.loads(args.implementations.read_text("utf-8"))
+        class PartialChunk(http.server.BaseHTTPRequestHandler):
+            def log_message(self,*_):pass
+            def do_POST(self):
+                self.send_response(200);self.send_header("Content-Type","application/sapi+jwe");self.send_header("Transfer-Encoding","chunked");self.end_headers()
+                self.wfile.write(b"10\r\nx");self.wfile.flush();time.sleep(1)
+        stalled=http.server.ThreadingHTTPServer(("127.0.0.1",0),PartialChunk);stalled.daemon_threads=True
+        threading.Thread(target=stalled.serve_forever,daemon=True).start();live.append(stalled)
+        for name,client in clients.items():
+            def deadline(client=client):
+                start=time.monotonic()
+                assert client.call(action="http",url=f"http://127.0.0.1:{stalled.server_port}/sapi",wire="fixture",timeout_ms=100)=={"error":"transport_error"}
+                assert time.monotonic()-start<.8,"timeout cleanup blocked caller"
+            add(name+": whole HTTP deadline survives a stalled partial chunk",deadline)
         for s_name, entry in registry.items():
             if "http_server" not in entry.get("features", []): continue
             server = servers[s_name]
@@ -367,13 +384,14 @@ def main():
         for path in (ROOT / "sdks").rglob("*"):
             if path.is_file() and path.suffix in (".py", ".js", ".java", ".cs", ".csproj", ".props", ".toml", ".xml", ".json"):
                 hashes[str(path.relative_to(ROOT)).replace("\\", "/")] = hashlib.sha256(path.read_bytes()).hexdigest()
+        hashes=commands.checked_hashes(ROOT)
         def version(program, flag):
             return run([program, flag]).strip() if shutil.which(program) else None
         report = {"utc": datetime.datetime.now(datetime.timezone.utc).isoformat(), "passed": len(result.passed), "total": result.testsRun,
                   "failures": [test.shortDescription() for test, _ in result.failures + result.errors], "cases": result.passed,
-                  "implementations": list(commands),
-                  "environment": {"python": sys.version.split()[0], "cryptography": cryptography.__version__, "node": version("node", "--version"),
-                                  "dotnet_sdk": version("dotnet", "--version"), "java": version("java", "-version")}, "source_sha256": hashes}
+                  "implementations": list(commands), "driver_runtimes": {name:driver.call(action="runtime") for name,driver in clients.items()},
+                  "environment": {"harness_python": sys.version.split()[0], "cryptography": cryptography.__version__, "node": version(env.get("SAPI_NODE","node"), "--version"),
+                                  "dotnet_sdk": version("dotnet", "--version"), "java": version(env.get("SAPI_JAVA","java"), "-version")}, "source_sha256": hashes}
         (work / "verification.json").write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8", newline="\n")
         print(json.dumps({k: report[k] for k in ("passed", "total", "failures")}, ensure_ascii=False))
         return 0 if result.wasSuccessful() else 1

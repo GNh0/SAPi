@@ -1,19 +1,20 @@
+import {hasOwn, clone} from './platform.js';
 // Closed bounded schemas. No regex from configuration, coercion or remote references.
 const SAFE = Number.MAX_SAFE_INTEGER, banned = new Set(['__proto__', 'constructor', 'prototype']);
 const field = /^[A-Za-z][A-Za-z0-9_]{0,63}(?![\s\S])/, identifier = /^[A-Za-z0-9][A-Za-z0-9_.:-]*(?![\s\S])/, uuid = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}(?![\s\S])/;
-const option = (schema,key,fallback) => Object.hasOwn(schema,key) ? schema[key] : fallback;
+const option = (schema,key,fallback) => hasOwn(schema,key) ? schema[key] : fallback;
 const plain = value => value !== null && typeof value === 'object' && !Array.isArray(value) && [Object.prototype, null].includes(Object.getPrototypeOf(value));
 export class Schema {
   #definition;
   constructor(definition, {rootObject = false} = {}) {
-    this.#definition = structuredClone(definition); let nodes = 0;
+    this.#definition = clone(definition); let nodes = 0;
     const bounds = (s, lo, hi, a, b, cap) => {const min = option(s,lo,a), max = option(s,hi,b); if (!Number.isSafeInteger(min) || !Number.isSafeInteger(max) || min < 0 || min > max || max > cap) throw new TypeError('invalid bounds');};
     const compile = (s, depth) => {
       const allowed = {object:['properties','optional'], array:['items','minItems','maxItems'], string:['minBytes','maxBytes','format','enum'], integer:['min','max'], number:['min','max'], boolean:[], null:[]};
-      if (++nodes > 256 || depth > 16 || !plain(s) || typeof s.type !== 'string' || !Object.hasOwn(allowed, s.type) || Object.keys(s).some(k => k !== 'type' && !allowed[s.type].includes(k))) throw new TypeError('bounded schema required');
+      if (++nodes > 256 || depth > 16 || !plain(s) || typeof s.type !== 'string' || !hasOwn(allowed, s.type) || Object.keys(s).some(k => k !== 'type' && !allowed[s.type].includes(k))) throw new TypeError('bounded schema required');
       if (s.type === 'object') {
         if (!plain(s.properties) || Object.keys(s.properties).length > 64 || Object.keys(s.properties).some(k => !field.test(k) || banned.has(k))) throw new TypeError('safe properties required');
-        const optional = option(s,'optional',[]); if (!Array.isArray(optional) || optional.some(k => typeof k !== 'string' || !Object.hasOwn(s.properties,k)) || new Set(optional).size !== optional.length) throw new TypeError('invalid optional');
+        const optional = option(s,'optional',[]); if (!Array.isArray(optional) || optional.some(k => typeof k !== 'string' || !hasOwn(s.properties,k)) || new Set(optional).size !== optional.length) throw new TypeError('invalid optional');
         Object.values(s.properties).forEach(v => compile(v, depth + 1));
       } else if (s.type === 'array') {bounds(s,'minItems','maxItems',0,16,64); compile(s.items,depth+1);}
       else if (s.type === 'string') {
@@ -28,7 +29,7 @@ export class Schema {
   }
   validate(value) {return this.#validate(this.#definition, value);}
   #validate(s,v) {
-    if (s.type === 'object') return plain(v) && Object.keys(v).every(k => Object.hasOwn(s.properties,k)) && Object.keys(s.properties).every(k => (s.optional ?? []).includes(k) || Object.hasOwn(v,k)) && Object.entries(v).every(([k,x]) => this.#validate(s.properties[k],x));
+    if (s.type === 'object') return plain(v) && Object.keys(v).every(k => hasOwn(s.properties,k)) && Object.keys(s.properties).every(k => (s.optional ?? []).includes(k) || hasOwn(v,k)) && Object.entries(v).every(([k,x]) => this.#validate(s.properties[k],x));
     if (s.type === 'array') return Array.isArray(v) && v.length >= (s.minItems ?? 0) && v.length <= (s.maxItems ?? 16) && v.every(x => this.#validate(s.items,x));
     if (s.type === 'string') {
       if (typeof v !== 'string' || /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/u.test(v) || /[\uD800-\uDFFF]/u.test(v)) return false;
