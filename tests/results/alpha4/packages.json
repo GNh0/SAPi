@@ -1,5 +1,5 @@
 {
-  "utc": "2026-09-27T15:22:57.465423+00:00",
+  "utc": "2026-09-27T15:31:44.478324+00:00",
   "source_sha256": {
     "sdks/dotnet/Directory.Build.props": "ce72e187c791d2359c6eb9b4518fd1140ff15f43bc4f0c59cc81a43fb9f46851",
     "sdks/dotnet/SApi.AspNet/SApi.AspNet.csproj": "139736d73da8f4c15725117518c6fc65c108a66e8b47ceee1c8e2cab781dc15b",
@@ -91,18 +91,18 @@
   },
   "verification_sha256": "78923325c2c54fc51cf4ab62ba3ca5dd1c3fb012bd104dda5bd18c129c95552a",
   "packages_sha256": {
-    "sapi-protocol-0.1.0-alpha.4.jar": "7b41320b326405884da62715315d54dae55b31093ae14876b9e5819e6a6cfe15",
+    "sapi-protocol-0.1.0-alpha.4.jar": "5b8c26a58ffe98a46eb6552cf2927e9603b71c6c3860fd1ecd307b6304382639",
     "sapi-protocol-0.1.0-alpha.4.pom": "d9b2eacabdc72594f5b225b7e7a0cc37bbe084a465455e6e3636d66b6552ef16",
-    "sapi-protocol-0.1.0-alpha.4.tgz": "ab18fb7899fbc23bd0899170c7c61a4fb84c7e2f41ced92b9e1d964a49deaa4c",
-    "SApi.AspNet.0.1.0-alpha.4.nupkg": "f9e27ff2a984d76767cc265cef9ff542ad365a5f6ef559ae9e2688e23ef4f9d1",
-    "SApi.AspNetCore.0.1.0-alpha.4.nupkg": "82c7c2218e839b3ab3e1b2dfbe83551f8c2f43e1cd27709aff56dad3d94a6030",
-    "SApi.Protocol.0.1.0-alpha.4.nupkg": "fa0198808a3162ec142d521af37dd6983065ac18d15387f61aa7312097f51d78",
-    "sapi_application-0.1.0a4-py3-none-any.whl": "e9450e6443e9a988397d817385b5ead541b7b8cfe0623f3cad291715757d6e89",
-    "sapi_application-0.1.0a4.tar.gz": "513f95ae881863621d7269bc8dac982a3f9341e089ac4084775861793bbf886d",
-    "sapi_protocol-0.1.0a4-py3-none-any.whl": "05231156394447dcc0ebf9f90b1b4bcc6c681982e81631c2578a8e9f47f70179",
-    "sapi_protocol-0.1.0a4.tar.gz": "81f5b98cbe5891c1d9927f3c5757e57dc0acb2e42d69881e954f55cd5d05bf19",
-    "sapi_state-0.1.0a4-py3-none-any.whl": "65ea0e97d04018063f28fe236189020fc9abe79f8d3f3168bc16c5d4d7d28d0b",
-    "sapi_state-0.1.0a4.tar.gz": "9ac15d0568432a1c2181c98ddf432df3ed290a3d8ebdddc4a8d5d487945c4b55"
+    "sapi-protocol-0.1.0-alpha.4.tgz": "f31f633cd9328e88e3f0416d337ce2045c4ca8be3101f968446917389c9517c8",
+    "SApi.AspNet.0.1.0-alpha.4.nupkg": "9f60aa608d732b293855cee678a0d21ebf9dad2dd5fb8fcabe4e3eddfe05fb4f",
+    "SApi.AspNetCore.0.1.0-alpha.4.nupkg": "7ea0aafa255efdd03c5b8f8a7206177f592e26ad9a58a85782e2b5c439fb4f13",
+    "SApi.Protocol.0.1.0-alpha.4.nupkg": "67d2a6fe0d4bc5524fad462cd02fa23b74047e598a2224f4109c505019a0d3ad",
+    "sapi_application-0.1.0a4-py3-none-any.whl": "6c3074d4e78ddb15f3d9ade31b77d6cbad8ebe8ec8f16e0f9c3743475ec46fcf",
+    "sapi_application-0.1.0a4.tar.gz": "263e0fadcdcd72fb2e90860cd0b1871900c45bae27ddfc3e98bd5811cc45519e",
+    "sapi_protocol-0.1.0a4-py3-none-any.whl": "3c027c1d0dbba8967aa468d6bf8dae6517ea11dd233fb5eab5dff0ecae415646",
+    "sapi_protocol-0.1.0a4.tar.gz": "6de32bc19465820bc0548f9649759402fa1eaa4b860a5198ccb0d78fdf185661",
+    "sapi_state-0.1.0a4-py3-none-any.whl": "ff0314d32d5249c89c93e04ec4358c04f9ac0bfa86236ab0df5db28ebd7913a9",
+    "sapi_state-0.1.0a4.tar.gz": "8011bdbca3f6d49d096addab3892bd16e919550207fe973a3f7cc6afa8e9ba98"
   },
   "state_verification_sha256": "68c8bfa0c8a53f581483433ef625b53726890766e3c360e3dc7c32b70c664745",
   "security_verification_sha256": "4532719a3ddcb151444485b66439d4f4c3cbd3349cf5f5d28746148e27bbaa1a",

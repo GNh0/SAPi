@@ -61,7 +61,10 @@ def main():
                          "--nologo", "--verbosity", "quiet", "-p:NuGetAudit=false"], env))
     npm = shutil.which("npm.cmd" if os.name == "nt" else "npm")
     if not npm: raise RuntimeError("npm required")
-    logs.append(run([npm, "pack", "--pack-destination", str(out)], env, ROOT / "sdks" / "javascript"))
+    # Older npm bundled with Node 16 does not support --pack-destination.
+    # Pack the source folder from the scratch directory, then copy the archive.
+    logs.append(run([npm, "pack", str(ROOT / "sdks" / "javascript")], env, stage))
+    shutil.copyfile(stage / "sapi-protocol-0.1.0-alpha.4.tgz", out / "sapi-protocol-0.1.0-alpha.4.tgz")
     base = "sapi-protocol-0.1.0-alpha.4"
     pom_dir = stage / "java" / "META-INF" / "maven" / "io.github.gnh0.sapi" / "sapi-protocol"
     pom_dir.mkdir(parents=True)
