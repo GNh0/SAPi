@@ -2,6 +2,16 @@
 
 2026-09-27 Windows에서 `alpha.2` 소스의 메시지 시험 **292/292**, 영속 상태 시험 **49/49**, 패키지 소비 **5종**이 통과했습니다. SDK·상태 서비스 패키지 **9개**를 생성했고 OSV 의존성 조회 **17개 패키지, 발견 0건**을 확인했습니다.
 
+같은 구현 커밋 [`dcb5172`](https://github.com/GNh0/SAPi/commit/dcb5172da8802620ad0faecac1b942b291d8f3ae)의 [GitHub CI 실행](https://github.com/GNh0/SAPi/actions/runs/36303335452)도 세 작업 모두 통과했습니다. 내려받은 보고서의 SDK·서비스 소스 해시 62개와 패키지·보고서 해시를 대조했습니다.
+
+| CI 작업 | 메시지 | 영속 상태 | 패키지 소비 | 패키지 생성 | 의존성 조회 |
+| --- | --- | --- | --- | --- | --- |
+| Windows | 292/292 | SQLite 49/49 | 5종 | 9개 | 16개, 발견 0건 |
+| Ubuntu | 292/292 | SQLite 49/49 | 5종 | 9개 | 14개, 발견 0건 |
+| PostgreSQL | — | SQLite·PostgreSQL 50/50 | — | — | — |
+
+PostgreSQL 결과의 50개 중 49개는 공통 상태 시험이고, 추가 1개는 실제 PostgreSQL에서 공유 authority·프로세스·SDK 조합을 묶어서 실행한 시험입니다. 운영체제와 Python 버전에 따라 설치되는 의존성 수는 다릅니다.
+
 ## 검사 범위
 
 | 검사 | 실행 내용 |
@@ -35,6 +45,10 @@ HTTP·HTTPS 조합의 서버 소켓은 Python 전송 어댑터이며 메시지 �
 - [패키지 소비 결과](../tests/results/package-smoke-windows.json)
 - [의존성 조회](../tests/results/dependency-audit-windows.json)
 - [독립 에이전트 소스 검토](SECURITY_REVIEW.md)
+- [CI 실행 요약과 해시 대조](../tests/results/ci-summary.json)
+- [Ubuntu 메시지 결과](../tests/results/verification-ubuntu.json)
+- [Ubuntu 상태 결과](../tests/results/state-verification-ubuntu.json)
+- [실제 PostgreSQL 상태 결과](../tests/results/state-verification-postgres.json)
 
 각 시험 보고서는 사용한 SDK/서비스 소스 SHA-256을 기록하고 패키지는 두 통과 보고서와 소스 일치를 요구합니다. 시험·운영 개인 키는 기록에 포함하지 않습니다.
 
@@ -53,4 +67,4 @@ python tools/smoke_packages.py --work-dir /absolute/scratch/sapi --package-dir /
 
 전용 loopback PostgreSQL 시험 DB가 있을 때 `verify_state.py --postgres "postgresql://...@127.0.0.1/...?... "`를 추가합니다. 이 시험은 해당 시험 DB의 SAPI 테이블을 초기화하므로 운영 DB를 지정하지 않습니다.
 
-[GitHub CI](https://github.com/GNh0/SAPi/actions/workflows/conformance.yml)는 Windows·Ubuntu·PostgreSQL 작업과 실행별 결과 파일을 보관합니다. 실제 배포의 전원 장애, 복제본 저장소의 내구성, 업무 거래의 멱등성, 일반 브라우저 실행과 모든 웹 프레임워크를 포괄하는 시험은 이 기록과 구분합니다.
+[GitHub CI](https://github.com/GNh0/SAPi/actions/workflows/conformance.yml)는 Windows·Ubuntu·PostgreSQL 작업과 실행별 결과 파일 및 패키지를 보관합니다. 실제 배포의 전원 장애, 복제본 저장소의 내구성, 업무 거래의 멱등성, 일반 브라우저 실행과 모든 웹 프레임워크를 포괄하는 시험은 이 기록과 구분합니다.

@@ -18,6 +18,8 @@
 
 구현자가 최종 소스로 실행한 회귀 결과는 [292개 메시지 시험](../tests/results/verification-windows.json), [49개 상태 시험](../tests/results/state-verification-windows.json), [5종 패키지 소비](../tests/results/package-smoke-windows.json)에 있습니다. 원본 메모의 이전 소스/44개 상태 결과와 최종 실행 증거를 구분합니다.
 
+[동일 구현의 GitHub CI](https://github.com/GNh0/SAPi/actions/runs/36303335452)에서도 Windows·Ubuntu 메시지/상태/패키지 소비와 [실제 PostgreSQL 상태 시험 50개](../tests/results/state-verification-postgres.json)가 통과했습니다. CI 실행과 소스 해시 대조는 [검증 기록](VALIDATION.md)에 있습니다.
+
 ## 의존성
 
 초기 OSV 조회에서 빌드 도구 setuptools 80.9.0과 wheel 0.45.1의 공지를 확인해 각각 84.0.0·0.48.0으로 교체했습니다. 패키지 build-system의 setuptools 최소 버전도 수정했습니다. [최종 조회](../tests/results/dependency-audit-windows.json)는 설치된 PyPI·Maven 17개 의존성에서 공지 발견 0건입니다.

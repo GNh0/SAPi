@@ -1,0 +1,64 @@
+{
+  "utc": "2026-09-27T07:33:11Z",
+  "head_sha": "dcb5172da8802620ad0faecac1b942b291d8f3ae",
+  "run_id": 36303335452,
+  "url": "https://github.com/GNh0/SAPi/actions/runs/36303335452",
+  "conclusion": "success",
+  "jobs": {
+    "ubuntu-latest": {
+      "conclusion": "success",
+      "verification.json": {
+        "passed": 292,
+        "total": 292,
+        "backends": null,
+        "sha256": "7590ec1d436a0e959e8e0e6ed34812684ae41780fb01b0fd4ab9072856bf7265"
+      },
+      "state-verification.json": {
+        "passed": 49,
+        "total": 49,
+        "backends": [
+          "sqlite"
+        ],
+        "sha256": "b6e1eff993e716bfee12e6a26faf2147abf15b6b0e8c9f7a0aba06daa2b4b498"
+      },
+      "packages": 9,
+      "package_consumers": 5,
+      "dependency_queries": 14,
+      "dependency_findings": 0
+    },
+    "windows-latest": {
+      "conclusion": "success",
+      "verification.json": {
+        "passed": 292,
+        "total": 292,
+        "backends": null,
+        "sha256": "eeb26205144472a5c8103615d2965d2fa289d8e9502371e031252b8d068aa411"
+      },
+      "state-verification.json": {
+        "passed": 49,
+        "total": 49,
+        "backends": [
+          "sqlite"
+        ],
+        "sha256": "b98bcc547a759c9644ebffe736416f6c4f87a1505392d9b104c371bc6d3b44fe"
+      },
+      "packages": 9,
+      "package_consumers": 5,
+      "dependency_queries": 16,
+      "dependency_findings": 0
+    },
+    "postgres": {
+      "conclusion": "success",
+      "state-verification.json": {
+        "passed": 50,
+        "total": 50,
+        "backends": [
+          "sqlite",
+          "postgresql"
+        ],
+        "sha256": "4a00f4e452a800e051d36f6e7dd520e2a09351d99e0f23780b2d5dc6bd981388"
+      }
+    }
+  },
+  "verified_source_files": 62
+}
