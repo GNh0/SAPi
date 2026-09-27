@@ -1,0 +1,21 @@
+{
+  "utc": "2026-09-27T09:56:23.849241+00:00",
+  "verification_sha256": "7b213e05a8dc6b42de21833687f3033dddf22433fbcc6db49911d150fd2fcbc3",
+  "packages_sha256": {
+    "sapi-protocol-0.1.0-alpha.3.jar": "c9bedd45168e35e8ec06d531c8dc81fa42623f8144d70e58865b3c661b395d53",
+    "sapi-protocol-0.1.0-alpha.3.pom": "78d36eb180b40eb8c44e90f7f131a7ec377294f85ecd13b3a031dd825102f002",
+    "sapi-protocol-0.1.0-alpha.3.tgz": "b486f05ec2e9083ebe127aafc9c8d39666545856971473df05da7e5580aa3a99",
+    "SApi.AspNetCore.0.1.0-alpha.3.nupkg": "4c35d4d8483d6f7bdad0cb0b200e442924f070089d5ddbe26d64e340ec3a2eca",
+    "SApi.Protocol.0.1.0-alpha.3.nupkg": "2ac942bdf213471b4cf60549db0528093e58d7fbe1716dcc83d02f0590bb10a9",
+    "sapi_application-0.1.0a3-py3-none-any.whl": "bad33ad2acc0d6df97cad96c4b78730a857147a691e2f363d11e6e18093d5122",
+    "sapi_application-0.1.0a3.tar.gz": "35985687c2a3b834eca3c293efe14f69b2b6928c769084cc832c284e974d1958",
+    "sapi_protocol-0.1.0a3-py3-none-any.whl": "0c527816adbe9356149b05ba895cb8607206f6adfe4db66b2fa8e043f6eb524e",
+    "sapi_protocol-0.1.0a3.tar.gz": "8d7f232f56bdce9f30d277b33898770e578c0c2cfceab77876e44a44adf02d88",
+    "sapi_state-0.1.0a3-py3-none-any.whl": "70d05880fc3f918eab6f2c17708ecc00dc12793914049c01eb0afad991f1ea19",
+    "sapi_state-0.1.0a3.tar.gz": "5bbabd4d2c888ce760c0b4e1563743bb19f2a73833699c07f1e8ef251703e1fe"
+  },
+  "state_verification_sha256": "53a3ac504f48c0547951afab08a715708c00e5fa02c2dbe0ad2fc716cb5e0222",
+  "security_verification_sha256": "b3ef58f31f641363b3a47425796f6304833849ccea1dcfedd1abf779c5f396ae",
+  "application_verification_sha256": "52aacde39c0a85698cdbacc75b827f85ab1e6553ce6f3d49036673b8f807ebce",
+  "checks": "build/pack success and required archive members; package registry publication not performed"
+}

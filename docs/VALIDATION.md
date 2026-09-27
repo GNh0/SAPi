@@ -2,7 +2,17 @@
 
 2026-09-27 Windows에서 `alpha.3` 소스의 메시지 **292/292**, 영속 상태 **50/50**, 처리 보안 **31/31**, 애플리케이션 **14/14**가 통과했습니다. 패키지 **11개**를 생성하고 별도 프로젝트의 소비 **6종**을 실행했습니다. OSV의 정확한 의존성 조회는 **17개, 공지 발견 0건**입니다.
 
-현재 [GitHub CI](https://github.com/GNh0/SAPi/actions/workflows/conformance.yml)는 Windows·Ubuntu의 같은 검사와 패키징, 전용 PostgreSQL 컨테이너의 상태·애플리케이션 검사를 실행합니다. 실행별 보고서와 패키지를 artifact로 보관합니다. 이전 alpha.2의 [세 작업 통과 기록](https://github.com/GNh0/SAPi/actions/runs/36303335452)은 새 기능 검증과 구분합니다.
+같은 구현 커밋 [`118efb9`](https://github.com/GNh0/SAPi/commit/118efb9da231a45a239cb382a0ecb63a2bf5dd4d)의 [GitHub CI](https://github.com/GNh0/SAPi/actions/runs/36310806375)는 세 작업 모두 통과했습니다. 내려받은 보고서의 SDK·서비스 소스 해시 79개와 네 검증 보고서·패키지 manifest·실제 패키지 SHA-256을 대조했습니다.
+
+| CI 작업 | 메시지 | 영속 상태 | 처리 보안 | 애플리케이션 | 패키지 |
+| --- | --- | --- | --- | --- | --- |
+| Windows | 292/292 | SQLite 50/50 | 31/31 | 14/14 | 6종 소비, 11개 생성 |
+| Ubuntu | 292/292 | SQLite 50/50 | 31/31 | 14/14 | 6종 소비, 11개 생성 |
+| PostgreSQL | — | SQLite·PostgreSQL 51/51 | — | SQLite·PostgreSQL 15/15 | — |
+
+PostgreSQL 작업은 공통 상태 50개·애플리케이션 14개에 실제 PostgreSQL을 실행하는 aggregate case를 각각 하나씩 추가합니다. 해당 DB에서 별도 프로세스의 주체 quota·키 수명·재전송, 소유자 조건·데이터 바인딩·동시 기대 버전 변경·상태 전이를 검사합니다. 의존성 조회는 CI Windows 16개·Ubuntu 14개, 공지 발견 0건입니다. Python 버전과 OS에 따라 설치되는 의존성 수는 다릅니다.
+
+로컬 Windows 보고서와 CI Windows 보고서를 별도로 보관합니다. 각각의 패키지 manifest가 자기 실행의 네 보고서 SHA-256을 참조하며 두 실행의 보고서를 섞지 않습니다.
 
 ## 검사 범위
 
@@ -47,14 +57,19 @@ HTTP·HTTPS 조합의 서버 소켓은 Python 전송 어댑터이며 메시지 �
 - [패키지 소비 결과](../tests/results/package-smoke-windows.json)
 - [의존성 조회](../tests/results/dependency-audit-windows.json)
 - [독립 에이전트 소스 검토](SECURITY_REVIEW.md)
-- [CI 실행 요약과 해시 대조](../tests/results/ci-summary.json)
+- [CI 실행 요약과 보고서 해시 대조](../tests/results/ci-summary.json)
+- [CI Windows 메시지 결과](../tests/results/ci-windows/verification.json)
+- [CI Windows 패키지 manifest](../tests/results/ci-windows/packages.json)
 - [Ubuntu 메시지 결과](../tests/results/verification-ubuntu.json)
 - [Ubuntu 상태 결과](../tests/results/state-verification-ubuntu.json)
+- [Ubuntu 처리 보안 결과](../tests/results/security-verification-ubuntu.json)
+- [Ubuntu 애플리케이션 결과](../tests/results/application-verification-ubuntu.json)
 - [실제 PostgreSQL 상태 결과](../tests/results/state-verification-postgres.json)
+- [실제 PostgreSQL 애플리케이션 결과](../tests/results/application-verification-postgres.json)
 
 각 시험 보고서는 사용한 SDK/서비스 소스 SHA-256을 기록하고 패키지는 네 통과 보고서 각각의 소스 일치를 요구합니다. 시험·운영 개인 키는 기록에 포함하지 않습니다.
 
-Windows 환경은 Python 3.10.4, cryptography 50.0.1, psycopg 3.3.6, Node.js 24.13.1, .NET SDK 9.0.308(net8.0 target), Microsoft JDK 11.0.16.1입니다. Jackson core/databind 2.22.3·annotations 2.22, setuptools 84.0.0·wheel 0.48.0을 사용합니다. 운영 런타임/OS 패치와 미보고 취약점은 의존성 공지 조회와 별개입니다. SQL 계획은 네 SDK가 생성하고 실제 SQLite DB-API로 실행합니다. Java JDBC·.NET ADO.NET 외부 DB 드라이버별 실제 연결 검증과 구분합니다.
+로컬 Windows 환경은 Python 3.10.4, cryptography 50.0.1, psycopg 3.3.6, Node.js 24.13.1, .NET SDK 9.0.308(net8.0 target), Microsoft JDK 11.0.16.1입니다. Jackson core/databind 2.22.3·annotations 2.22, setuptools 84.0.0·wheel 0.48.0을 사용합니다. 운영 런타임/OS 패치와 미보고 취약점은 의존성 공지 조회와 별개입니다. SQL 계획은 네 SDK가 생성하고 실제 SQLite DB-API로 실행합니다. Java JDBC·.NET ADO.NET 외부 DB 드라이버별 실제 연결 검증과 구분합니다.
 
 ## 재현
 

@@ -18,7 +18,7 @@
 
 구현자가 실행한 최신 회귀와 패키지 소비는 [검증 기록](VALIDATION.md)에 있습니다. 원본 메모의 이전 소스/44개 상태 결과와 최신 실행 증거를 구분합니다.
 
-[동일 구현의 GitHub CI](https://github.com/GNh0/SAPi/actions/runs/36303335452)에서도 Windows·Ubuntu 메시지/상태/패키지 소비와 [실제 PostgreSQL 상태 시험 50개](../tests/results/state-verification-postgres.json)가 통과했습니다. CI 실행과 소스 해시 대조는 [검증 기록](VALIDATION.md)에 있습니다.
+[이전 alpha.2의 GitHub CI](https://github.com/GNh0/SAPi/actions/runs/36303335452)도 Windows·Ubuntu·PostgreSQL의 당시 검사를 통과했습니다. 최신 alpha.3의 세 작업과 추가 검증은 [현재 CI](https://github.com/GNh0/SAPi/actions/runs/36310806375)에 있습니다. CI 실행과 소스 해시 대조는 [검증 기록](VALIDATION.md)에 있습니다.
 
 ## alpha.3 애플리케이션 처리 검토
 

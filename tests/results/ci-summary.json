@@ -1,64 +1,93 @@
 {
-  "utc": "2026-09-27T07:33:11Z",
-  "head_sha": "dcb5172da8802620ad0faecac1b942b291d8f3ae",
-  "run_id": 36303335452,
-  "url": "https://github.com/GNh0/SAPi/actions/runs/36303335452",
+  "utc": "2026-09-27T09:58:18.571555+00:00",
+  "commit": "118efb9da231a45a239cb382a0ecb63a2bf5dd4d",
+  "run_id": 36310806375,
+  "url": "https://github.com/GNh0/SAPi/actions/runs/36310806375",
   "conclusion": "success",
-  "jobs": {
-    "ubuntu-latest": {
-      "conclusion": "success",
-      "verification.json": {
-        "passed": 292,
-        "total": 292,
-        "backends": null,
-        "sha256": "7590ec1d436a0e959e8e0e6ed34812684ae41780fb01b0fd4ab9072856bf7265"
-      },
-      "state-verification.json": {
-        "passed": 49,
-        "total": 49,
-        "backends": [
-          "sqlite"
-        ],
-        "sha256": "b6e1eff993e716bfee12e6a26faf2147abf15b6b0e8c9f7a0aba06daa2b4b498"
-      },
-      "packages": 9,
-      "package_consumers": 5,
-      "dependency_queries": 14,
-      "dependency_findings": 0
-    },
-    "windows-latest": {
-      "conclusion": "success",
-      "verification.json": {
-        "passed": 292,
-        "total": 292,
-        "backends": null,
-        "sha256": "eeb26205144472a5c8103615d2965d2fa289d8e9502371e031252b8d068aa411"
-      },
-      "state-verification.json": {
-        "passed": 49,
-        "total": 49,
-        "backends": [
-          "sqlite"
-        ],
-        "sha256": "b98bcc547a759c9644ebffe736416f6c4f87a1505392d9b104c371bc6d3b44fe"
-      },
-      "packages": 9,
-      "package_consumers": 5,
-      "dependency_queries": 16,
-      "dependency_findings": 0
-    },
+  "results": {
     "postgres": {
-      "conclusion": "success",
-      "state-verification.json": {
+      "state-verification": {
+        "passed": 51,
+        "total": 51,
+        "source_hashes_verified": 79
+      },
+      "application-verification": {
+        "passed": 15,
+        "total": 15,
+        "source_hashes_verified": 79
+      },
+      "report_sha256": {
+        "tests/results/application-verification-postgres.json": "12e9fb0faf44ace29da927b85d4917821beaaf0511b06177f677dcd1c56fee7c",
+        "tests/results/state-verification-postgres.json": "85528b22f33e50d09270af081dea4e4e3f38ab0c09673d725f1d17aa3b798ddb"
+      }
+    },
+    "ubuntu": {
+      "verification": {
+        "passed": 292,
+        "total": 292,
+        "source_hashes_verified": 63
+      },
+      "state-verification": {
         "passed": 50,
         "total": 50,
-        "backends": [
-          "sqlite",
-          "postgresql"
-        ],
-        "sha256": "4a00f4e452a800e051d36f6e7dd520e2a09351d99e0f23780b2d5dc6bd981388"
+        "source_hashes_verified": 79
+      },
+      "security-verification": {
+        "passed": 31,
+        "total": 31,
+        "source_hashes_verified": 79
+      },
+      "application-verification": {
+        "passed": 14,
+        "total": 14,
+        "source_hashes_verified": 79
+      },
+      "packages_verified": 11,
+      "package_consumers": 6,
+      "dependency_queries": 14,
+      "report_sha256": {
+        "tests/results/application-verification-ubuntu.json": "175114540442193cf7ee7f81e6c12e24d94f0e74c5d17cb6bea990a8e3aaf497",
+        "tests/results/dependency-audit-ubuntu.json": "a7086df485ce172c8d6ba31999c3c244fe995589e39cce74547c5257b78bd5fc",
+        "tests/results/package-smoke-ubuntu.json": "c8f3338baa5c32283512091628875d355111c0485a295aca112f0dc1cb298a98",
+        "tests/results/packages-ubuntu.json": "8e02703eb5ba0186dc66aa338b4fe8d7ec93050188312ec7814b0d060ce12932",
+        "tests/results/security-verification-ubuntu.json": "d99c4e961a66fdc692739616e55df231d4ee17b3e7bbeb0e2becbf970054215a",
+        "tests/results/state-verification-ubuntu.json": "9757e8e914c1e666c29d58860b97232facf010502c6fba3974b3a9179b7318ce",
+        "tests/results/verification-ubuntu.json": "cf5ba7cd27c70ab831e8009edda4d12f7431a1c28029857bdd170a242111e20a"
+      }
+    },
+    "windows": {
+      "verification": {
+        "passed": 292,
+        "total": 292,
+        "source_hashes_verified": 63
+      },
+      "state-verification": {
+        "passed": 50,
+        "total": 50,
+        "source_hashes_verified": 79
+      },
+      "security-verification": {
+        "passed": 31,
+        "total": 31,
+        "source_hashes_verified": 79
+      },
+      "application-verification": {
+        "passed": 14,
+        "total": 14,
+        "source_hashes_verified": 79
+      },
+      "packages_verified": 11,
+      "package_consumers": 6,
+      "dependency_queries": 16,
+      "report_sha256": {
+        "tests/results/ci-windows/application-verification.json": "52aacde39c0a85698cdbacc75b827f85ab1e6553ce6f3d49036673b8f807ebce",
+        "tests/results/ci-windows/dependency-audit.json": "f05ba7a97067044c25ccc23d6f4ebc0043e6d4b44a4527c515558ad55b65990f",
+        "tests/results/ci-windows/package-smoke.json": "fc15ad7ddb5638ae3837eb3047afed1009654eef97ae7923ed16ef09c8a76b51",
+        "tests/results/ci-windows/packages.json": "e6d880441b18ab36044fe9a2682a35e9cabe0a467f65f90b0ca02d495a9e4e3e",
+        "tests/results/ci-windows/security-verification.json": "b3ef58f31f641363b3a47425796f6304833849ccea1dcfedd1abf779c5f396ae",
+        "tests/results/ci-windows/state-verification.json": "53a3ac504f48c0547951afab08a715708c00e5fa02c2dbe0ad2fc716cb5e0222",
+        "tests/results/ci-windows/verification.json": "7b213e05a8dc6b42de21833687f3033dddf22433fbcc6db49911d150fd2fcbc3"
       }
     }
-  },
-  "verified_source_files": 62
+  }
 }
