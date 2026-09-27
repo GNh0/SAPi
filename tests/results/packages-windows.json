@@ -1,14 +1,17 @@
 {
-  "utc": "2026-09-27T06:12:30.765745+00:00",
-  "verification_sha256": "7386f2de7d3bb6cc55e5a6132bc8a5c9d53ede89d8fcfa5485449f82d7e2702c",
+  "utc": "2026-09-27T07:28:17.683420+00:00",
+  "verification_sha256": "1d12a1c9749157f1ef56f96126e2e8acc4232ae8a4fbf4c96cc0ba50d667185f",
   "packages_sha256": {
-    "sapi-protocol-0.1.0-alpha.1.jar": "16606f3b989bef666c4a412fa8454c57b4dc454ab87972d670f33b6f44b39dad",
-    "sapi-protocol-0.1.0-alpha.1.pom": "f7cb735722592c1b1ae7691fa4e0e0f2bd19cda2f08d6088d7ce57d0e4e26b02",
-    "sapi-protocol-0.1.0-alpha.1.tgz": "46ef2d60bea6080e771cc80ca7496cd37d871adee95b53993eca21b709fe63eb",
-    "SApi.AspNetCore.0.1.0-alpha.1.nupkg": "0b871c461af84dee41eb2718b71e041b54baa3a57d94267dd389e0f8bb0ac1f2",
-    "SApi.Protocol.0.1.0-alpha.1.nupkg": "11fd7c9e141005437a4092cb04f6438cf70b87a1d161eda834ef9f4f86c98124",
-    "sapi_protocol-0.1.0a1-py3-none-any.whl": "e97fc0101274ded0d6b6e278097d9eaa06818d70226ed4cc0040468ebc2423db",
-    "sapi_protocol-0.1.0a1.tar.gz": "beec2f25a63bd1cff25e803dc2c726efbc7520809b58270b8131c0113e408cec"
+    "sapi-protocol-0.1.0-alpha.2.jar": "2c073c4942a0cbe2f99f7c73a8cc9c47c2297e05ab6449501a29be2ee7d1611f",
+    "sapi-protocol-0.1.0-alpha.2.pom": "ee1aa5034b2a420e466598e639e059148af23dfe79f87447555b84826af772f5",
+    "sapi-protocol-0.1.0-alpha.2.tgz": "bcbd832fbb87e60cf3e71e22bd7fe3f6f831eb28ec86c67d9210f6ef223d0e67",
+    "SApi.AspNetCore.0.1.0-alpha.2.nupkg": "6f1ff5fa54796ffc4e37fc427d0195f08f39de35085def3e63ec091eac6449a7",
+    "SApi.Protocol.0.1.0-alpha.2.nupkg": "df21a1811aa9d801bf9aadcdc5dba2788824b8da64c9bd5f01f219151c4318ae",
+    "sapi_protocol-0.1.0a2-py3-none-any.whl": "91cd0d6a29f9018701eca9111d0f42cbeb75e684a7f330a533e3dec9b93504ad",
+    "sapi_protocol-0.1.0a2.tar.gz": "92ddf580fb46c971e65c7999557026786eb3646226561a7090938e4f050e5575",
+    "sapi_state-0.1.0a2-py3-none-any.whl": "cb38a7c111a9993e55451d7a1c4713477fc1909f14170f4e394dfe9c5e75d893",
+    "sapi_state-0.1.0a2.tar.gz": "6a2d1bf6be811312a3b9617b8b0aa55e5b683ef181b81104f0e23f67d77e0015"
   },
+  "state_verification_sha256": "ffb69f66ac2420e1a8fe6c52f3b57cad608dd7114af78e93c28ec40804d916cb",
   "checks": "build/pack success and required archive members; package registry publication not performed"
 }

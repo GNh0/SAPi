@@ -37,7 +37,7 @@ def main():
         lock_path.write_text(json.dumps(observed, indent=2) + "\n", encoding="utf-8", newline="\n")
     pydeps = args.work_dir.resolve() / "pydeps"
     subprocess.run([sys.executable, "-m", "pip", "install", "--disable-pip-version-check", "--target", str(pydeps),
-                    "cryptography==50.0.1", "build==1.3.0", "setuptools==80.9.0", "wheel==0.45.1"], check=True)
+                    "cryptography==50.0.1", "build==1.3.0", "setuptools==84.0.0", "wheel==0.48.0", "psycopg[binary]==3.3.6"], check=True)
 
 
 if __name__ == "__main__":

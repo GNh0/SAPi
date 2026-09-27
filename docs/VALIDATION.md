@@ -1,42 +1,56 @@
 # 검증 기록
 
-2026-09-27, Windows에서 최종 SDK 소스로 **280/280 테스트케이스 통과**. 패키지 생성 후 격리된 소비 프로젝트의 4종 사용 검사도 모두 통과했다. 실행 기록의 소스 해시와 패키지 해시를 함께 보관한다.
+2026-09-27 Windows에서 `alpha.2` 소스의 메시지 시험 **292/292**, 영속 상태 시험 **49/49**, 패키지 소비 **5종**이 통과했습니다. SDK·상태 서비스 패키지 **9개**를 생성했고 OSV 의존성 조회 **17개 패키지, 발견 0건**을 확인했습니다.
 
-## 확인한 범위
+## 검사 범위
 
-| 검사 | 결과 |
+| 검사 | 실행 내용 |
 | --- | --- |
-| HKDF 표준 구현과 고정 요청/응답 벡터 | 최초 참조 구현 4개 일치 |
-| 암호 메시지 요청/응답 상호 운용 | 등록된 4개 구현의 16개 조합 통과 |
-| 실제 HTTP·HTTPS 통신 | 언어별 네이티브 클라이언트 × 서버 Codec/처리기, 각각 16개 조합 통과 |
-| 실제 ASP.NET Core 어댑터 | 4종 클라이언트로 Kestrel `POST /sapi` 호출; 평문 입력은 거부 |
-| 인증서 검사 | 시험 CA를 명시적으로 신뢰; 잘못된 호스트명 인증서는 4종 클라이언트 모두 거부 |
-| 암호/파싱 공격 | 잘못된 키, 암호문·IV·태그 변조, 보호 헤더 원본 변경, 다운그레이드, 대상/방향/버전, 중복 JSON, 잘못된 UTF-8, surrogate, 크기·깊이·정수·시간 위반 차단 |
-| 재전송·응답 결합 | 요청/응답 재사용, 동시 16회 재전송, 응답 교환, 동일 ID의 잘못된 요청 해시/키 검사 |
-| 업무 처리 경계 | scope·소유권·입력 오류·누락 policy에서 handler 차단; 캐시 용량/장애도 차단; 내부 예외는 제한된 암호 오류 |
-| 패키지 사용 | Python wheel, npm exports, NuGet 전이 의존성/어댑터 assembly, Java JAR를 새 프로젝트에서 참조하여 교환 |
+| 공통 암호 벡터 | HKDF 표준 구현, 고정 JWE 요청·응답 일치 |
+| 메시지 상호운용 | 등록된 4개 SDK의 16개 요청·응답 조합 |
+| HTTP·HTTPS | 네이티브 클라이언트 × SDK 서버 처리 각각 16개 조합 |
+| ASP.NET Core | 실제 Kestrel endpoint, 평문 거절, 4종 클라이언트 |
+| 파싱·인증 | 암호문·IV·태그·AAD 변조, BOM/UTF-8/중복 키/숫자/크기/시간 위반 |
+| 구조화 차등 퍼징 | SDK마다 seeded JSON 100개와 인증 변조 100개, 총 800회 |
+| mTLS·영속 SDK | 실제 관리 서비스와 SDK 16개 조합, SDK 재시작 뒤 replay 차단 |
+| 키 수명 | 발급·자동/수동 회전·유예·폐기·응답 예산 사전 확보 |
+| 운영 명령 | 관리자/서버 인증서 교체·등록 제거·KEK 제거·운영 lease |
+| 프로세스 공유 | 별도 8개 프로세스의 한 번 예약과 전역 사용량 제한 |
+| 공유 부하 | 신규 claim 64개와 중복 64개, 동시 8개 작업 |
+| 장애·복구 | anchor 기록 실패, COMMIT 전 실제 프로세스 종료, 전체 DB 과거 복원과 새 빈 DB 복구 |
+| 상태 무결성 | 서명된 옛 키 행·삭제된 replay·root 카운터·audit/checkpoint 수정 거절 |
+| 인증 상태 트리 | 500회 seeded 삽입/수정/삭제와 모델 대조 |
+| 시간 제한 | 지속해서 도착하는 HTTP 본문도 네 SDK의 전체 응답 deadline으로 종료 |
+| 패키지 소비 | NuGet, npm, Python SDK/state wheel, Java JAR를 별도 프로젝트에서 사용 |
 
-HTTP/HTTPS 16개 조합의 서버 측 전송 소켓은 공통 Python 데모 어댑터다. 이 어댑터는 원본 wire를 각 언어의 별도 서버 프로세스에 전달하며, 복호화·권한 검사·handler·응답 암호화는 해당 언어 SDK가 담당한다. ASP.NET Core는 별도로 실제 Kestrel 엔드포인트를 시험했다. Java/Python/JavaScript의 모든 웹 프레임워크를 시험했다는 뜻은 아니다.
+HTTP·HTTPS 조합의 서버 소켓은 Python 전송 어댑터이며 메시지 복호화·정책·처리·응답 암호화는 각 언어의 별도 프로세스가 수행합니다. ASP.NET Core는 실제 Kestrel도 별도로 시험합니다.
 
-## 환경과 증거
+상태 시험은 실제 mTLS 서비스와 SQLite를 사용합니다. CI PostgreSQL 작업은 별도 PostgreSQL 18.6 컨테이너에서 두 authority·8개 프로세스·공통 체크포인트·전역 사용량·폐기를 검사하고 서로 다른 authority endpoint 사이의 SDK 16개 조합을 실행합니다. loopback 시험 DB의 plaintext 예외와 운영 `verify-full` 조건은 구분합니다.
 
-- Python 3.10.4, cryptography 50.0.1
-- Node.js 24.13.1
-- .NET SDK 9.0.308, 라이브러리/소비 프로젝트 target `net8.0`
-- Microsoft OpenJDK 11.0.16.1, `javac --release 11`
-- Jackson core/databind 2.22.3, annotations 2.22; 다운로드 파일 SHA-256 고정
+## 증거
 
-[프로토콜 시험 기록](../tests/results/verification-windows.json), [패키지 SHA-256 기록](../tests/results/packages-windows.json), [패키지 소비 기록](../tests/results/package-smoke-windows.json).
+- [메시지 결과](../tests/results/verification-windows.json)
+- [상태·수명·장애 결과](../tests/results/state-verification-windows.json)
+- [패키지 SHA-256](../tests/results/packages-windows.json)
+- [패키지 소비 결과](../tests/results/package-smoke-windows.json)
+- [의존성 조회](../tests/results/dependency-audit-windows.json)
+- [독립 에이전트 소스 검토](SECURITY_REVIEW.md)
+
+각 시험 보고서는 사용한 SDK/서비스 소스 SHA-256을 기록하고 패키지는 두 통과 보고서와 소스 일치를 요구합니다. 시험·운영 개인 키는 기록에 포함하지 않습니다.
+
+Windows 환경은 Python 3.10.4, cryptography 50.0.1, psycopg 3.3.6, Node.js 24.13.1, .NET SDK 9.0.308(net8.0 target), Microsoft JDK 11.0.16.1입니다. Jackson core/databind 2.22.3·annotations 2.22, setuptools 84.0.0·wheel 0.48.0을 사용합니다. 운영 런타임/OS 패치와 미보고 취약점은 의존성 공지 조회와 별개입니다.
 
 ## 재현
 
 ```text
 python tools/bootstrap.py --work-dir /absolute/scratch/sapi
 python tools/verify.py --work-dir /absolute/scratch/sapi
+python tools/verify_state.py --work-dir /absolute/scratch/sapi
+python tools/audit_dependencies.py --work-dir /absolute/scratch/sapi
 python tools/package.py --work-dir /absolute/scratch/sapi --output-dir /absolute/path/dist
 python tools/smoke_packages.py --work-dir /absolute/scratch/sapi --package-dir /absolute/path/dist
 ```
 
-검증 기록은 특정 소스·환경의 결과다. 새 구현을 registry에 추가하면 N×N 조합을 생성하며 케이스 수는 달라진다. 최초 소스 커밋 `4af623f`의 [Windows·Ubuntu CI](https://github.com/GNh0/SAPi/actions/runs/36299470368)도 시험·패키징·패키지 소비 단계까지 모두 통과했다. 이후 변경은 각 커밋의 CI 실행 결과로 판단한다. CI Actions는 현재 공식 릴리스의 커밋 SHA에 고정했다.
+전용 loopback PostgreSQL 시험 DB가 있을 때 `verify_state.py --postgres "postgresql://...@127.0.0.1/...?... "`를 추가합니다. 이 시험은 해당 시험 DB의 SAPI 테이블을 초기화하므로 운영 DB를 지정하지 않습니다.
 
-이 기록은 독립 보안 감사, 퍼징, 부하·분산/재시작 내구성, 일반 브라우저 실행, Maven 빌드, 공개 레지스트리 게시, 아직 없는 SDK/프레임워크의 검증을 포함하지 않는다. 기본 메모리 재전송 저장소의 운영 제약과 PSK/전방향 비밀성 제약은 [SECURITY.md](../spec/SECURITY.md)를 따른다.
+[GitHub CI](https://github.com/GNh0/SAPi/actions/workflows/conformance.yml)는 Windows·Ubuntu·PostgreSQL 작업과 실행별 결과 파일을 보관합니다. 실제 배포의 전원 장애, 복제본 저장소의 내구성, 업무 거래의 멱등성, 일반 브라우저 실행과 모든 웹 프레임워크를 포괄하는 시험은 이 기록과 구분합니다.

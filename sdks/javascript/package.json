@@ -1,10 +1,10 @@
 {
   "name": "sapi-protocol",
-  "version": "0.1.0-alpha.1",
+  "version": "0.1.0-alpha.2",
   "type": "module",
   "description": "Experimental transport-independent SAPI/0.1 message security",
   "repository": {"type": "git", "url": "https://github.com/GNh0/SAPi.git"},
-  "exports": {".": "./src/index.js", "./http": "./src/http.js"},
+  "exports": {".": "./src/index.js", "./http": "./src/http.js", "./state-node": "./src/state-node.js"},
   "files": ["src"],
   "engines": {"node": ">=20"}
 }

@@ -1,5 +1,5 @@
 import {SapiError} from './errors.js';
-const encoder = new TextEncoder(), decoder = new TextDecoder('utf-8', {fatal: true});
+const encoder = new TextEncoder(), decoder = new TextDecoder('utf-8', {fatal: true, ignoreBOM: true});
 
 export function b64(bytes) {
   let s = ''; for (const b of bytes) s += String.fromCharCode(b);

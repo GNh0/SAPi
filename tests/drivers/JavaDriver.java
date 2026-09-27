@@ -10,6 +10,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 public final class JavaDriver {
     static Codec codec;
     static SecureServer server;
+    static StateClient state;
     static Map<String, RequestContext> contexts = new HashMap<>();
     static AtomicInteger executions = new AtomicInteger();
     static boolean oneString(JsonNode d, String key) {return d.isObject() && d.size() == 1 && d.has(key) && d.get(key).isTextual();}
@@ -23,8 +24,14 @@ public final class JavaDriver {
                 for (JsonNode s : f.getValue().get("scopes")) scopes.add(s.textValue());
                 keys.put(f.getKey(), new KeyRecord(Sapi.unb64(f.getValue().get("key").textValue()), f.getValue().get("subject").textValue(), scopes));
             }
-            codec = c.hasNonNull("now") ? new Codec(c.path("service").asText("demo"), keys, () -> c.get("now").longValue()) : new Codec(c.path("service").asText("demo"), keys);
+            state = null;
+            if (c.has("state")) {
+                JsonNode s = c.get("state"); state = new StateClient(java.net.URI.create(s.get("url").textValue()), new File(s.get("ca_file").textValue()), new File(s.get("certificate").textValue()), new File(s.get("private_key").textValue()), java.time.Duration.ofMillis((long)(s.path("timeout").asDouble(10) * 1000)));
+            }
+            KeyProvider provider = state != null ? state : new StaticKeyProvider(keys);
+            codec = c.hasNonNull("now") ? new Codec(c.path("service").asText("demo"), provider, () -> c.get("now").longValue()) : new Codec(c.path("service").asText("demo"), provider);
             ReplayStore store = c.path("store").asText().equals("fail") ? (k, exp, now) -> {throw new RuntimeException("storage unavailable");} : new MemoryReplayStore(c.path("capacity").asInt(10000));
+            if (state != null) store = state;
             server = new SecureServer(codec, store); contexts.clear(); executions.set(0);
             server.register("echo", "echo", d -> oneString(d, "message") && d.get("message").textValue().getBytes(StandardCharsets.UTF_8).length <= 4096,
                 (p, d) -> true, (p, d) -> {executions.incrementAndGet(); return d;});
@@ -38,11 +45,11 @@ public final class JavaDriver {
         }
         if (action.equals("seal")) return Sapi.object().put("wire", codec.seal(c.get("kid").textValue(), c.get("dir").textValue(), c.get("payload")));
         if (action.equals("open")) {Opened o = codec.open(c.get("wire").textValue(), c.get("dir").textValue()); ObjectNode r = Sapi.object().put("kid", o.kid); r.set("payload", o.payload); return r;}
-        if (action.equals("request")) {RequestContext ctx = codec.request(c.get("kid").textValue(), c.get("op").textValue(), c.get("data")); contexts.put(slot, ctx); return Sapi.object().put("wire", ctx.wire);}
+        if (action.equals("request")) {RequestContext ctx = c.has("subject") ? state.request(codec, c.get("subject").textValue(), c.get("op").textValue(), c.get("data")) : codec.request(c.get("kid").textValue(), c.get("op").textValue(), c.get("data")); contexts.put(slot, ctx); return Sapi.object().put("wire", ctx.wire);}
         if (action.equals("accept")) {ObjectNode r = Sapi.object(); r.set("payload", codec.acceptResponse(contexts.get(slot), c.get("wire").textValue())); return r;}
         if (action.equals("handle")) return Sapi.object().put("wire", server.handle(c.get("wire").textValue()));
         if (action.equals("http")) {
-            try {return Sapi.object().put("wire", io.github.gnh0.sapi.HttpBinding.exchange(java.net.URI.create(c.get("url").textValue()), c.get("wire").textValue(), c.has("ca") ? new File(c.get("ca").textValue()) : null));}
+            try {return Sapi.object().put("wire", io.github.gnh0.sapi.HttpBinding.exchange(java.net.URI.create(c.get("url").textValue()), c.get("wire").textValue(), c.has("ca") ? new File(c.get("ca").textValue()) : null, java.time.Duration.ofMillis(c.path("timeout_ms").asLong(30000))));}
             catch (Exception e) {return Sapi.object().put("error", "transport_error");}
         }
         if (action.equals("stats")) return Sapi.object().put("executions", executions.get());

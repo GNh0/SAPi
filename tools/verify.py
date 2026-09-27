@@ -9,6 +9,7 @@ import json
 import os
 from pathlib import Path
 import queue
+import random
 import shutil
 import subprocess
 import sys
@@ -162,6 +163,28 @@ def main():
                     assert server.call(action="stats") == {"executions": 1}
                 add(f"interop: {c_name} -> {s_name} request/response", matrix)
 
+        for name, client in clients.items():
+            def parser_properties(client=client):
+                reset(client); rng = random.Random(20260927)
+                master = unb64(fixture["keys"]["alice-k1"]["key"])
+                alphabet = ["", "plain", "한글 🌐", "\u0000\n\t", "\"\\/", "__proto__", "constructor"]
+                def value(depth=0):
+                    choices = [None, True, False, rng.randrange(-1000000, 1000000), rng.uniform(-100, 100), 1e-307, rng.choice(alphabet)]
+                    if depth < 5:
+                        choices.extend([[value(depth + 1) for _ in range(rng.randrange(4))],
+                                        {rng.choice(alphabet) + str(n): value(depth + 1) for n in range(rng.randrange(4))}])
+                    return rng.choice(choices)
+                for _ in range(100):
+                    payload = {"id": "%032x" % rng.getrandbits(128), "iat": fixture["now"], "exp": fixture["now"] + 60,
+                               "op": "echo", "data": {"value": value()}}
+                    body = json.dumps(payload, ensure_ascii=bool(rng.randrange(2)), separators=(",", ":") if rng.randrange(2) else None).encode("utf-8")
+                    wire = reference.seal(master, payload, body_raw=body)
+                    assert client.call(action="open", wire=wire, dir="req")["payload"] == payload
+                    parts = wire.split("."); position = rng.choice((2, 3, 4)); raw = bytearray(unb64(parts[position]))
+                    raw[rng.randrange(len(raw))] ^= 1 << rng.randrange(8); parts[position] = b64(bytes(raw))
+                    assert client.call(action="open", wire=".".join(parts), dir="req") == {"error": "invalid_message"}
+            add(name + ": seeded structured JSON differential fuzzing and authentication mutations", parser_properties)
+
         original = fixture["vectors"][0]["wire"]
         payload = fixture["vectors"][0]["payload"]
         master = unb64(fixture["keys"]["alice-k1"]["key"])
@@ -200,6 +223,8 @@ def main():
         attacks["duplicate operation member"] = reference.seal(master, payload, body_raw=json.dumps(payload).replace('"op": "echo"', '"op":"own","op":"echo"').encode())
         attacks["duplicate nested member"] = reference.seal(master, payload, body_raw=json.dumps(payload).replace('"message":', '"message":"wrong","message":').encode())
         attacks["invalid UTF8"] = reference.seal(master, payload, body_raw=b'\xff')
+        attacks["UTF8 BOM body"] = reference.seal(master, payload, body_raw=b'\xef\xbb\xbf' + json.dumps(payload).encode())
+        attacks["UTF8 BOM header"] = reference.seal(master, payload, header_raw=b'\xef\xbb\xbf' + unb64(parts[0]))
         attacks["nonfinite JSON number"] = reference.seal(master, payload, body_raw=json.dumps(payload).replace('1700000000', 'NaN').encode())
         attacks["trailing JSON document"] = reference.seal(master, payload, body_raw=json.dumps(payload).encode() + b' {}')
         attacks["unpaired escaped surrogate"] = reference.seal(master, payload, body_raw=json.dumps(payload).replace('"message":', '"message":"\\ud800","removed":').encode())

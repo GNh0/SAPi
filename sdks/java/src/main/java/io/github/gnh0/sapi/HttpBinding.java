@@ -18,6 +18,9 @@ import javax.net.ssl.TrustManagerFactory;
 public final class HttpBinding {
     private HttpBinding() {}
     public static String exchange(URI url, String wire, File caFile) throws Exception {
+        return exchange(url, wire, caFile, Duration.ofSeconds(30));
+    }
+    public static String exchange(URI url, String wire, File caFile, Duration timeout) throws Exception {
         if (!(url.getScheme().equals("http") || url.getScheme().equals("https")) || !"/sapi".equals(url.getPath()) || url.getQuery() != null || url.getFragment() != null || url.getUserInfo() != null) throw new IllegalArgumentException("HTTP(S) /sapi URL required");
         if (wire.length() > Sapi.MAX_WIRE) throw new SapiException();
         for (int i = 0; i < wire.length(); i++) if (wire.charAt(i) > 127) throw new SapiException();
@@ -29,13 +32,16 @@ public final class HttpBinding {
             SSLContext context = SSLContext.getInstance("TLS"); context.init(null, factory.getTrustManagers(), null); builder.sslContext(context);
         }
         // Default HttpClient endpoint identification checks the server hostname.
-        HttpRequest request = HttpRequest.newBuilder(url).timeout(Duration.ofSeconds(30)).header("Content-Type", "application/sapi+jwe")
+        HttpRequest request = HttpRequest.newBuilder(url).timeout(timeout).header("Content-Type", "application/sapi+jwe")
             .header("Accept", "application/sapi+jwe").POST(HttpRequest.BodyPublishers.ofString(wire, StandardCharsets.US_ASCII)).build();
-        HttpResponse<byte[]> response = builder.build().send(request, info -> {
+        java.util.concurrent.CompletableFuture<HttpResponse<byte[]>> pending = builder.build().sendAsync(request, info -> {
             if (info.statusCode() != 200 || !info.headers().firstValue("Content-Type").orElse("").split(";")[0].equals("application/sapi+jwe"))
                 return HttpResponse.BodySubscribers.replacing(new byte[0]);
             return HttpResponse.BodySubscribers.mapping(new LimitedSubscriber(), data -> data);
         });
+        HttpResponse<byte[]> response;
+        try { response = pending.get(timeout.toMillis(), java.util.concurrent.TimeUnit.MILLISECONDS); }
+        catch (Exception e) { pending.cancel(true); throw e; }
         if (response.statusCode() != 200 || !response.headers().firstValue("Content-Type").orElse("").split(";")[0].equals("application/sapi+jwe")) throw new SapiException("transport_error");
         byte[] data = response.body(); for (byte b : data) if ((b & 255) > 127) throw new SapiException("transport_error");
         return new String(data, StandardCharsets.US_ASCII);

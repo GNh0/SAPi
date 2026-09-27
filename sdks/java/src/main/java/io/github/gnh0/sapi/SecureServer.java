@@ -25,6 +25,7 @@ public final class SecureServer {
     }
     public String handle(String wire) {
         Opened opened = codec.open(wire, "req"); JsonNode request = opened.payload; KeyRecord principal = codec.principal(opened.kid); long now = codec.now();
+        java.util.function.Function<JsonNode, String> finish = codec.prepareResponse(opened.kid);
         ObjectNode response = object().put("id", text(request.get("id"))).put("iat", now).put("exp", now + 60).put("req", digest(wire)).put("ok", false);
         try {
             if (!replay.claim(codec.service + "|" + opened.kid + "|" + text(request.get("id")), integer(request.get("exp")), codec.now())) throw new SapiException("replay");
@@ -36,6 +37,6 @@ public final class SecureServer {
             response.put("ok", true); response.set("data", result);
         } catch (SapiException e) { response.put("error", Set.of("replay", "replay_capacity", "unknown_operation", "forbidden", "invalid_input").contains(e.code) ? e.code : "internal_error"); }
         catch (Exception e) { response.put("error", "internal_error"); }
-        return codec.seal(opened.kid, "res", response);
+        return finish.apply(response);
     }
 }

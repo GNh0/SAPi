@@ -1,14 +1,14 @@
 [build-system]
-requires = ["setuptools>=68"]
+requires = ["setuptools>=84"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "sapi-protocol"
-version = "0.1.0a1"
+version = "0.1.0a2"
 description = "Experimental transport-independent SAPI/0.1 message security"
 readme = "README.md"
 requires-python = ">=3.10"
-dependencies = ["cryptography>=46.0.5,<51"]
+dependencies = ["cryptography>=50.0.1,<51"]
 
 [project.urls]
 Repository = "https://github.com/GNh0/SAPi"

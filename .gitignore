@@ -15,3 +15,9 @@
 dist/
 **/*.egg-info/
 **/build/
+*.sqlite
+*.sqlite-*
+*.operator.lock
+**/secrets.json
+**/checkpoint.json
+**/recovery.json

@@ -19,6 +19,7 @@ class SecureServer:
     def handle(self, wire: str) -> str:
         kid, request = self.codec.open(wire, "req")
         principal = self.codec.principal(kid)
+        finish = self.codec.prepare_response(kid)
         now = self.codec.clock()
         response = {"id": request["id"], "iat": now, "exp": now + 60,
                     "req": digest(wire), "ok": False}
@@ -46,4 +47,4 @@ class SecureServer:
             response["error"] = exc.code if exc.code in {"replay", "replay_capacity", "unknown_operation", "forbidden", "invalid_input"} else "internal_error"
         except Exception:
             response["error"] = "internal_error"
-        return self.codec.seal(kid, "res", response)
+        return finish(response)

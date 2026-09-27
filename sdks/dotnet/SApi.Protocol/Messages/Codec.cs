@@ -15,25 +15,19 @@ public sealed class Codec
     private static readonly Regex Base64Pattern = new("\\A[A-Za-z0-9_-]+\\z", RegexOptions.CultureInvariant);
     private static readonly UTF8Encoding Utf8 = new(false, true);
     private static readonly string[] HeaderFields = { "alg", "enc", "typ", "kid", "sapi", "dir", "svc", "crit" };
-    private readonly Dictionary<string, KeyRecord> keys;
-    private readonly Dictionary<string, int> counts = new();
-    private readonly object sync = new();
+    private readonly IKeyProvider keys;
     private readonly Func<long> clock;
     public string Service { get; }
     public long Now => clock();
-    public Codec(string service, IReadOnlyDictionary<string, KeyRecord> keys, Func<long>? clock = null)
+    public Codec(string service, IReadOnlyDictionary<string, KeyRecord> keys, Func<long>? clock = null) : this(service, new StaticKeyProvider(keys), clock) { }
+    public Codec(string service, IKeyProvider keys, Func<long>? clock = null)
     {
-        if (!ValidName(service) || keys.Count == 0) throw new ArgumentException("service and keys required");
-        Service = service; this.keys = new(StringComparer.Ordinal);
-        foreach (var entry in keys)
-        {
-            if (!ValidName(entry.Key)) throw new ArgumentException("invalid key id");
-            this.keys.Add(entry.Key, entry.Value);
-        }
+        if (!ValidName(service)) throw new ArgumentException("service required");
+        Service = service; this.keys = keys ?? throw new ArgumentNullException(nameof(keys));
         this.clock = clock ?? (() => DateTimeOffset.UtcNow.ToUnixTimeSeconds());
     }
     public static bool ValidName(string? value) => value != null && Name.IsMatch(value);
-    public KeyRecord Principal(string kid) => keys.TryGetValue(kid, out var record) ? record : throw new SapiException();
+    public KeyRecord Principal(string kid) => keys.Get(Service, kid);
     public static string B64(byte[] raw) => Convert.ToBase64String(raw).TrimEnd('=').Replace('+', '-').Replace('/', '_');
     public static byte[] UnB64(string value)
     {
@@ -50,7 +44,11 @@ public sealed class Codec
     public byte[] Derive(string kid, string direction)
     {
         if (direction != "req" && direction != "res") throw new SapiException();
-        var prk = HMACSHA256.HashData(Utf8.GetBytes("SAPI/0.1 HKDF-SHA-256"), Principal(kid).Master);
+        return Derive(kid, direction, Principal(kid));
+    }
+    private byte[] Derive(string kid, string direction, KeyRecord record)
+    {
+        var prk = HMACSHA256.HashData(Utf8.GetBytes("SAPI/0.1 HKDF-SHA-256"), record.Master);
         var info = Utf8.GetBytes($"SAPI/0.1|{Service}|{kid}|{direction}");
         var input = new byte[info.Length + 1]; info.CopyTo(input, 0); input[^1] = 1;
         return HMACSHA256.HashData(prk, input);
@@ -82,18 +80,28 @@ public sealed class Codec
         if (direction != "req" && direction != "res") throw new SapiException();
         Tree(payload); Validate(payload, direction);
         var body = Utf8.GetBytes(payload.GetRawText()); if (body.Length > MaxBody) throw new SapiException();
-        lock (sync)
+        return SealReserved(kid, direction, body, keys.Reserve(Service, kid, direction));
+    }
+    internal Func<JsonElement, string> PrepareResponse(string kid)
+    {
+        var record = keys.Reserve(Service, kid, "res"); var used = 0;
+        return payload =>
         {
-            var countKey = kid + "|" + direction; counts.TryGetValue(countKey, out var count);
-            if (count >= 1048576) throw new SapiException("key_rotation_required"); counts[countKey] = count + 1;
-        }
+            if (Interlocked.Exchange(ref used, 1) != 0) throw new SapiException("reservation_used");
+            Tree(payload); Validate(payload, "res");
+            var body = Utf8.GetBytes(payload.GetRawText()); if (body.Length > MaxBody) throw new SapiException();
+            return SealReserved(kid, "res", body, record);
+        };
+    }
+    private string SealReserved(string kid, string direction, byte[] body, KeyRecord record)
+    {
         var header = new Dictionary<string, object> {
             ["alg"] = "dir", ["enc"] = "A256GCM", ["typ"] = "sapi+jwe", ["kid"] = kid,
             ["sapi"] = "0.1", ["dir"] = direction, ["svc"] = Service, ["crit"] = new[] {"sapi", "dir", "svc"}
         };
         var protectedHeader = B64(JsonSerializer.SerializeToUtf8Bytes(header));
         var iv = RandomNumberGenerator.GetBytes(12); var ciphertext = new byte[body.Length]; var tag = new byte[16];
-        using var aes = new AesGcm(Derive(kid, direction), 16);
+        using var aes = new AesGcm(Derive(kid, direction, record), 16);
         aes.Encrypt(iv, body, ciphertext, tag, Encoding.ASCII.GetBytes(protectedHeader));
         return string.Join('.', protectedHeader, "", B64(iv), B64(ciphertext), B64(tag));
     }

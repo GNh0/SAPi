@@ -30,6 +30,10 @@ jobs:
         run: python tools/bootstrap.py --work-dir "${{ runner.temp }}/sapi-validation"
       - name: Verify every registered implementation pair
         run: python tools/verify.py --work-dir "${{ runner.temp }}/sapi-validation"
+      - name: Verify durable state, key lifecycle and mTLS adapters
+        run: python tools/verify_state.py --work-dir "${{ runner.temp }}/sapi-validation"
+      - name: Check exact dependency versions against OSV
+        run: python tools/audit_dependencies.py --work-dir "${{ runner.temp }}/sapi-validation"
       - name: Build local packages
         run: python tools/package.py --work-dir "${{ runner.temp }}/sapi-validation" --output-dir "${{ runner.temp }}/sapi-packages"
       - name: Consume packaged SDKs in isolated projects
@@ -40,8 +44,49 @@ jobs:
           name: verification-${{ matrix.os }}
           path: |
             ${{ runner.temp }}/sapi-validation/verification.json
+            ${{ runner.temp }}/sapi-validation/state-verification.json
+            ${{ runner.temp }}/sapi-validation/dependency-audit.json
             ${{ runner.temp }}/sapi-validation/packages.json
             ${{ runner.temp }}/sapi-validation/package-smoke.json
             ${{ runner.temp }}/sapi-validation/*-build.log
             ${{ runner.temp }}/sapi-validation/package.log
             ${{ runner.temp }}/sapi-packages/*
+  postgres:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres@sha256:5a5a84b19854a9ffaa54082c166ff4ec27473a361e496e5ea167f298f2da9722 # 18.6
+        env:
+          POSTGRES_USER: sapi_test
+          POSTGRES_PASSWORD: disposable_ci_database
+          POSTGRES_DB: sapi_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U sapi_test -d sapi_test"
+          --health-interval 5s --health-timeout 5s --health-retries 12
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24'
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: '8.0.x'
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: '11'
+      - name: Prepare isolated dependencies
+        run: python tools/bootstrap.py --work-dir "${{ runner.temp }}/sapi-validation"
+      - name: Verify shared PostgreSQL state
+        run: >-
+          python tools/verify_state.py --work-dir "${{ runner.temp }}/sapi-validation"
+          --postgres "postgresql://sapi_test:disposable_ci_database@127.0.0.1:5432/sapi_test?sslmode=disable"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: verification-postgres
+          path: ${{ runner.temp }}/sapi-validation/state-verification.json

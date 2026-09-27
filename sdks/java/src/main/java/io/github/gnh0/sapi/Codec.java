@@ -16,23 +16,26 @@ import static io.github.gnh0.sapi.Sapi.*;
 
 public final class Codec {
     public final String service;
-    private final Map<String, KeyRecord> keys;
-    private final Map<String, Integer> counts = new HashMap<>();
+    private final KeyProvider keys;
     private final LongSupplier clock;
     public Codec(String service, Map<String, KeyRecord> keys) { this(service, keys, () -> System.currentTimeMillis() / 1000); }
-    public Codec(String service, Map<String, KeyRecord> keys, LongSupplier clock) {
-        if (!name(service) || keys.isEmpty()) throw new IllegalArgumentException("service and keys required");
-        for (String k : keys.keySet()) if (!name(k)) throw new IllegalArgumentException("invalid key id");
-        this.service = service; this.keys = Map.copyOf(keys); this.clock = clock;
+    public Codec(String service, Map<String, KeyRecord> keys, LongSupplier clock) { this(service, new StaticKeyProvider(keys), clock); }
+    public Codec(String service, KeyProvider keys) { this(service, keys, () -> System.currentTimeMillis() / 1000); }
+    public Codec(String service, KeyProvider keys, LongSupplier clock) {
+        if (!name(service) || keys == null) throw new IllegalArgumentException("service and keys required");
+        this.service = service; this.keys = keys; this.clock = clock;
     }
     public long now() { return clock.getAsLong(); }
-    public KeyRecord principal(String kid) { KeyRecord p = keys.get(kid); if (p == null) throw new SapiException(); return p; }
+    public KeyRecord principal(String kid) { return keys.get(service, kid); }
     public byte[] derive(String kid, String direction) {
         if (!Set.of("req", "res").contains(direction)) throw new SapiException();
+        return derive(kid, direction, principal(kid));
+    }
+    private byte[] derive(String kid, String direction, KeyRecord record) {
         try {
             Mac mac = Mac.getInstance("HmacSHA256");
             mac.init(new SecretKeySpec(utf8("SAPI/0.1 HKDF-SHA-256"), "HmacSHA256"));
-            byte[] prk = mac.doFinal(principal(kid).master);
+            byte[] prk = mac.doFinal(record.master);
             mac.init(new SecretKeySpec(prk, "HmacSHA256"));
             byte[] info = utf8("SAPI/0.1|" + service + "|" + kid + "|" + direction);
             byte[] input = Arrays.copyOf(info, info.length + 1); input[input.length - 1] = 1;
@@ -54,17 +57,24 @@ public final class Codec {
     public String seal(String kid, String direction, JsonNode payload) {
         if (!Set.of("req", "res").contains(direction)) throw new SapiException(); validate(payload, direction);
         byte[] body = encode(payload); if (body.length > MAX_BODY) throw new SapiException();
-        synchronized (counts) {
-            String ck = kid + "|" + direction; int count = counts.getOrDefault(ck, 0);
-            if (count >= 1048576) throw new SapiException("key_rotation_required"); counts.put(ck, count + 1);
-        }
+        return sealReserved(kid, direction, body, keys.reserve(service, kid, direction));
+    }
+    java.util.function.Function<JsonNode, String> prepareResponse(String kid) {
+        KeyRecord record = keys.reserve(service, kid, "res"); java.util.concurrent.atomic.AtomicBoolean used = new java.util.concurrent.atomic.AtomicBoolean();
+        return payload -> {
+            if (used.getAndSet(true)) throw new SapiException("reservation_used");
+            validate(payload, "res"); byte[] body = encode(payload); if (body.length > MAX_BODY) throw new SapiException();
+            return sealReserved(kid, "res", body, record);
+        };
+    }
+    private String sealReserved(String kid, String direction, byte[] body, KeyRecord record) {
         ObjectNode h = object().put("alg", "dir").put("enc", "A256GCM").put("typ", "sapi+jwe").put("kid", kid)
             .put("sapi", "0.1").put("dir", direction).put("svc", service);
         h.putArray("crit").add("sapi").add("dir").add("svc"); String protectedHeader = b64(encode(h));
         byte[] iv = new byte[12]; RANDOM.nextBytes(iv);
         try {
             Cipher aes = Cipher.getInstance("AES/GCM/NoPadding");
-            aes.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(derive(kid, direction), "AES"), new GCMParameterSpec(128, iv));
+            aes.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(derive(kid, direction, record), "AES"), new GCMParameterSpec(128, iv));
             aes.updateAAD(utf8(protectedHeader)); byte[] encrypted = aes.doFinal(body);
             return String.join(".", protectedHeader, "", b64(iv), b64(Arrays.copyOf(encrypted, encrypted.length - 16)), b64(Arrays.copyOfRange(encrypted, encrypted.length - 16, encrypted.length)));
         } catch (Exception e) { throw new SapiException(); }

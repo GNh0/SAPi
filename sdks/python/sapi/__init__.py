@@ -2,7 +2,8 @@
 from .codec import Codec
 from .errors import SapiError
 from .models import KeyRecord, Principal, RequestContext
+from .keys import KeyProvider, StaticKeyProvider
 from .replay import MemoryReplayStore, ReplayStore
 from .server import SecureServer
 
-__all__ = ["Codec", "KeyRecord", "Principal", "MemoryReplayStore", "ReplayStore", "RequestContext", "SapiError", "SecureServer"]
+__all__ = ["Codec", "KeyRecord", "KeyProvider", "StaticKeyProvider", "Principal", "MemoryReplayStore", "ReplayStore", "RequestContext", "SapiError", "SecureServer"]

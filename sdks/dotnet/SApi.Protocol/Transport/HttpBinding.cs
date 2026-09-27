@@ -8,7 +8,7 @@ public static class HttpBinding
 {
     // Explicit CA option adds a trusted root; hostname validation is always retained.
     public static async Task<string> ExchangeAsync(Uri url, string wire, X509Certificate2? trustedRoot = null,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default, TimeSpan? deadline = null)
     {
         if ((url.Scheme != "http" && url.Scheme != "https") || url.AbsolutePath != "/sapi" ||
             url.Query.Length != 0 || url.Fragment.Length != 0 || url.UserInfo.Length != 0) throw new ArgumentException("HTTP(S) /sapi URL required");
@@ -30,14 +30,14 @@ public static class HttpBinding
             };
         }
         using var client = new HttpClient(handler) {Timeout = TimeSpan.FromSeconds(30)};
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken); timeout.CancelAfter(deadline ?? TimeSpan.FromSeconds(30));
         using var content = new ByteArrayContent(Encoding.ASCII.GetBytes(wire));
         content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/sapi+jwe");
         using var request = new HttpRequestMessage(HttpMethod.Post, url) {Content = content};
         request.Headers.Accept.Add(new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/sapi+jwe"));
-        using var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+        using var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, timeout.Token);
         if ((int)response.StatusCode != 200 || response.Content.Headers.ContentType?.MediaType != "application/sapi+jwe") throw new SapiException("transport_error");
-        using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
-        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken); timeout.CancelAfter(TimeSpan.FromSeconds(30));
+        using var stream = await response.Content.ReadAsStreamAsync(timeout.Token);
         var buffer = new byte[Codec.MaxWire + 1]; var total = 0;
         while (total < buffer.Length)
         {

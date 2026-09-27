@@ -1,100 +1,152 @@
-# 설치와 사용
+# 설치와 SDK 사용
 
-현재는 로컬 설치 가능한 실험용 패키지다. 공개 패키지 저장소에 게시하지 않았다. 운영 키는 신뢰한 별도 경로로 발급하고 서버는 해당 키에 연결된 주체와 scope를 등록해야 한다. 소스의 `tests/vectors.json`에는 공개 시험 키만 있으며 실사용하면 안 된다.
+패키지 버전은 `0.1.0-alpha.2`(Python `0.1.0a2`)입니다. 공개 레지스트리 게시 없이 로컬 패키지로 설치합니다.
 
-## 검증과 패키징
+## 빌드
 
-Python 3.10+, .NET SDK 8+, Node 20+, JDK 11+가 필요하다. Maven/Gradle 없이 Java 시험을 실행할 수 있다. 아래 Windows PowerShell 예시는 의존성과 중간 결과를 임시 폴더에 둔다.
+Python 3.10+, .NET SDK 8+, Node.js 20+, JDK 11+를 사용합니다.
 
 ```powershell
 $sapiWork = Join-Path $env:TEMP 'sapi-validation'
 python tools/bootstrap.py --work-dir $sapiWork
 python tools/verify.py --work-dir $sapiWork
+python tools/verify_state.py --work-dir $sapiWork
+python tools/audit_dependencies.py --work-dir $sapiWork
 python tools/package.py --work-dir $sapiWork --output-dir "$PWD/dist"
 python tools/smoke_packages.py --work-dir $sapiWork --package-dir "$PWD/dist"
 ```
 
-Linux/macOS에서는 같은 명령의 `--work-dir`에 임시 경로를 넘긴다. 패키징은 통과한 검증 보고서의 SDK 소스 해시가 현재 소스와 같을 때만 진행된다. 네이티브 SDK는 생산 환경에서 Python 시험 도구를 필요로 하지 않는다.
+Linux/macOS는 같은 명령에 절대 scratch 경로를 지정합니다. 패키징은 통과한 메시지·상태 보고서와 현재 SDK/서비스 소스 해시를 대조합니다.
 
-`dist/` 산출물:
-
-| 구현 | 로컬 설치/참조 |
+| 패키지 | 설치·참조 |
 | --- | --- |
-| .NET | `dotnet add package SApi.Protocol --version 0.1.0-alpha.1 --source /absolute/path/dist`; ASP.NET Core는 `SApi.AspNetCore`도 추가 |
-| Python | `python -m pip install /absolute/path/dist/sapi_protocol-0.1.0a1-py3-none-any.whl` |
-| JavaScript | `npm install /absolute/path/dist/sapi-protocol-0.1.0-alpha.1.tgz` |
-| Java | JAR와 Jackson 의존성을 classpath에 추가하거나, 동봉 POM과 함께 `mvn install:install-file -Dfile=...jar -DpomFile=...pom`으로 로컬 Maven 저장소에 등록 |
+| .NET | `dotnet add package SApi.Protocol --version 0.1.0-alpha.2 --source /absolute/path/dist` |
+| ASP.NET Core | `SApi.AspNetCore` 같은 버전 추가 |
+| Python | `python -m pip install /absolute/path/dist/sapi_protocol-0.1.0a2-py3-none-any.whl` |
+| 상태 서비스 | `python -m pip install --find-links /absolute/path/dist sapi-state==0.1.0a2` |
+| JavaScript | `npm install /absolute/path/dist/sapi-protocol-0.1.0-alpha.2.tgz` |
+| Java | JAR와 Jackson 의존성을 classpath에 추가하거나 JAR/POM을 로컬 Maven 저장소에 등록 |
 
-Java 프로젝트의 일반 Maven 빌드는 `mvn -f sdks/java/pom.xml package`다. 이 작업에서는 Maven 실행 파일 없이 javac/JAR 경로를 검증했다. 생성 JAR에 Jackson을 내장하지 않으므로 POM의 의존성을 함께 제공해야 한다.
+Java 일반 프로젝트는 `mvn -f sdks/java/pom.xml package`를 사용할 수 있습니다. 공통 시험·패키징 도구는 javac/JAR 경로를 사용합니다.
 
-## Python 요청·서버 처리
+## 공통 준비
 
-아래는 같은 프로세스에서 경계를 보여주는 예제다. 실제 배포는 서로 다른 프로세스의 별도 registry에서 같은 키를 신뢰하게 설치한다. 샘플 key는 매 실행 새로 생성하며 본문만 암호화된 wire를 전송한다.
+[상태 서비스 운영](STATE.md)의 절차로 `orders` 서비스에 `client-1` 키를 발급하고 `echo` scope를 부여합니다. 아래 예시는 클라이언트 인증서와 서버 인증서를 따로 사용합니다. 인증서·개인 키 경로와 서비스 주소는 신뢰한 배포 설정으로 지정합니다.
 
-```python
-import secrets
-from sapi import Codec, KeyRecord, SecureServer
-from sapi.http import exchange
-
-key = secrets.token_bytes(32)
-keys = {"client-k1": KeyRecord(key, "client", frozenset({"echo"}))}
-client = Codec("demo", keys)
-server = SecureServer(Codec("demo", keys))
-server.register(
-    "echo", "echo",
-    validator=lambda data: set(data) == {"message"} and isinstance(data["message"], str),
-    policy=lambda principal, data: principal.subject == "client",
-    handler=lambda principal, data: data,
-)
-context = client.request("client-k1", "echo", {"message": "안녕"})
-response_wire = server.handle(context.wire)
-response = client.accept_response(context, response_wire)
-assert response["ok"] and response["data"] == {"message": "안녕"}
-# 원격 전송: response_wire = exchange("https://api.example/sapi", context.wire)
+```text
+sapi-state issue --config /secure/sapi/operator/config.json --service orders --subject client-1 --scope echo
 ```
 
-루프백 데모 서버는 `examples/http_server.py --keys /secure/path/registry.json`으로 실행한다. 레코드 형식은 `{kid:{"key":패딩 없는 base64url 32바이트,"subject":주체,"scopes":[...]}}`이다. 기본 URL은 `http://127.0.0.1:8080/sapi`다. HTTPS에는 `--certificate ... --private-key ...`가 둘 다 필요하다. 다른 머신에 노출하는 운영 서버로 사용하지 않는다.
+`StateClient`는 키 공급자와 재전송 저장소를 함께 구현합니다. 클라이언트 요청 함수는 활성 키 조회·자동 회전 경합 처리를 포함합니다. `SecureServer`에는 validator·policy·handler가 모두 있어야 합니다.
+
+## Python
+
+```python
+from sapi import Codec, SecureServer
+from sapi.state import StateClient
+from sapi.http import exchange
+
+client_state = StateClient("https://127.0.0.1:8443",
+    ca_file="/secure/ca.pem", certificate="/secure/client.pem",
+    private_key="/secure/client.key")
+service_state = StateClient("https://127.0.0.1:8443",
+    ca_file="/secure/ca.pem", certificate="/secure/service.pem",
+    private_key="/secure/service.key")
+client = Codec("orders", client_state)
+server = SecureServer(Codec("orders", service_state), service_state)
+server.register("echo", "echo",
+    lambda d: set(d) == {"message"} and isinstance(d["message"], str),
+    lambda p, d: p.subject == "client-1",
+    lambda p, d: {"message": d["message"]})
+
+context = client_state.request(client, "client-1", "echo", {"message": "hello"})
+response = server.handle(context.wire)
+payload = client.accept_response(context, response)
+# 별도 API 서버를 호출할 때:
+# response = exchange("https://api.example/sapi", context.wire)
+```
+
+## JavaScript / Node.js
+
+```javascript
+import {Codec, SecureServer} from 'sapi-protocol';
+import {StateClient} from 'sapi-protocol/state-node';
+import {exchange} from 'sapi-protocol/http';
+
+const options = role => ({
+  caFile: '/secure/ca.pem',
+  certificate: '/secure/' + role + '.pem',
+  privateKey: '/secure/' + role + '.key',
+});
+const clientState = new StateClient('https://127.0.0.1:8443', options('client'));
+const serviceState = new StateClient('https://127.0.0.1:8443', options('service'));
+const client = new Codec('orders', clientState);
+const server = new SecureServer(new Codec('orders', serviceState), serviceState);
+server.register('echo', 'echo',
+  d => Object.keys(d).length === 1 && typeof d.message === 'string',
+  p => p.subject === 'client-1',
+  (p, d) => ({message: d.message}));
+const context = await clientState.request(client, 'client-1', 'echo', {message: 'hello'});
+const response = await server.handle(context.wire);
+const payload = await client.acceptResponse(context, response);
+```
+
+핵심 ESM은 Web Crypto를 사용하고 Node.js 상태 어댑터는 별도 export입니다. 브라우저에 개인 인증서·공유 키를 배포하지 않습니다. 다른 런타임은 동일 `get/reserve`·`claim` 계약을 해당 환경의 신뢰한 상태 연결로 구현할 수 있습니다.
 
 ## .NET / ASP.NET Core
-
-ASP.NET Core의 기존 `Program.cs`에 연결하는 예제다. `SAPI_KEY`는 외부에서 안전하게 발급한 32바이트 키의 base64url 표현이다. 값 자체를 설정 파일/소스에 넣지 않는다.
 
 ```csharp
 using SApi.Protocol;
 using SApi.AspNetCore;
 
-var builder = WebApplication.CreateBuilder(args);
-var app = builder.Build();
-var keys = new Dictionary<string, KeyRecord> {
-    ["client-k1"] = new(Codec.UnB64(
-        Environment.GetEnvironmentVariable("SAPI_KEY")
-        ?? throw new InvalidOperationException("key provisioning required")),
-        "client", new[] { "echo" })
-};
-var codec = new Codec("demo", keys);
-var server = new SecureServer(codec);
+using var clientState = StateClient.FromPemFiles(new Uri("https://127.0.0.1:8443"),
+    "/secure/ca.pem", "/secure/client.pem", "/secure/client.key");
+using var serviceState = StateClient.FromPemFiles(new Uri("https://127.0.0.1:8443"),
+    "/secure/ca.pem", "/secure/service.pem", "/secure/service.key");
+var client = new Codec("orders", clientState);
+var server = new SecureServer(new Codec("orders", serviceState), serviceState);
 server.Register("echo", "echo",
-    data => data.TryGetProperty("message", out var value)
-        && value.ValueKind == System.Text.Json.JsonValueKind.String,
-    (principal, data) => principal.Subject == "client",
-    (principal, data) => data);
-app.MapSapi(server);
-app.Run();
+    d => d.EnumerateObject().Count() == 1 &&
+         d.TryGetProperty("message", out var m) && m.ValueKind == System.Text.Json.JsonValueKind.String,
+    (p, d) => p.Subject == "client-1",
+    (p, d) => d);
+var context = clientState.Request(client, "client-1", "echo", Codec.Json(new {message = "hello"}));
+var payload = client.AcceptResponse(context, server.Handle(context.Wire));
 
-// 별도 클라이언트:
-// var context = codec.Request("client-k1", "echo", Codec.Json(new { message = "안녕" }));
-// var wire = await HttpBinding.ExchangeAsync(new Uri("https://api.example/sapi"), context.Wire);
-// var response = codec.AcceptResponse(context, wire);
+// ASP.NET Core 앱의 실제 endpoint:
+// app.MapSapi(server);  // POST /sapi
+// var response = await HttpBinding.ExchangeAsync(new Uri("https://api.example/sapi"), context.Wire);
 ```
 
-이 validator는 짧은 연결 예시다. 실제 업무의 필드 허용 목록, 길이·형식, 객체별 권한은 엄격하게 지정한다. 평문으로 같은 handler를 호출하는 별도 API를 열면 해당 경로는 SAPI의 보호를 받지 않는다.
+기존 인증서 저장소/HSM 개인 키는 `StateClient(Uri, trustedRoot, clientIdentity)` 생성자에 전달할 수 있습니다. PEM 파일 factory는 Windows TLS 인증서 로딩도 처리합니다.
 
-## JavaScript와 Java
+## Java
 
-JavaScript의 공개 진입점은 `sapi-protocol`, 전송은 `sapi-protocol/http`다. `Codec.request`, `Codec.acceptResponse`, `SecureServer.register`와 `handle`은 Promise 기반이다. `keys[kid]`는 `{master: Uint8Array(32), subject, scopes: [...]}` 레코드다. browser의 Web Crypto/secure context/CORS/mixed-content 제약은 그대로 적용된다. 공개 번들에 공유 키를 포함하지 않는다.
+```java
+import io.github.gnh0.sapi.*;
+import java.io.File;
+import java.net.URI;
 
-Java의 공개 타입은 `io.github.gnh0.sapi.Codec`, `KeyRecord`, `RequestContext`, `SecureServer`, `ReplayStore`, `MemoryReplayStore`, `SapiException`, `HttpBinding`이다. data는 Jackson `JsonNode`다. `Sapi.object()`로 객체를 생성할 수 있고 `Codec.request`/`acceptResponse`, `SecureServer.register`/`handle`은 같은 처리 계약을 제공한다. Spring 등에 연결할 때 원본 ASCII 요청 본문을 `handle`에 전달하는 얇은 어댑터를 작성한다. Spring 어댑터의 실행 검증은 아직 하지 않았다.
+StateClient clientState = new StateClient(URI.create("https://127.0.0.1:8443"),
+    new File("/secure/ca.pem"), new File("/secure/client.pem"), new File("/secure/client.key"));
+StateClient serviceState = new StateClient(URI.create("https://127.0.0.1:8443"),
+    new File("/secure/ca.pem"), new File("/secure/service.pem"), new File("/secure/service.key"));
+Codec client = new Codec("orders", clientState);
+SecureServer server = new SecureServer(new Codec("orders", serviceState), serviceState);
+server.register("echo", "echo",
+    d -> d.isObject() && d.size() == 1 && d.has("message") && d.get("message").isTextual(),
+    (p, d) -> p.subject.equals("client-1"),
+    (p, d) -> d);
+RequestContext context = clientState.request(client, "client-1", "echo", Sapi.object().put("message", "hello"));
+var payload = client.acceptResponse(context, server.handle(context.wire));
+```
 
-## 다른 언어
+Java 상태 어댑터는 PKCS#8 PEM EC/RSA 키를 지원하고 인증서 trust store·키 store를 구성합니다.
 
-[구현 지침](../spec/IMPLEMENTING.md)과 [드라이버 계약](../tests/DRIVER_CONTRACT.md)을 따른다. 기존 네 언어의 런타임을 불러야 하는 조건은 없다. 새 구현을 registry에 추가하면 언어 간 모든 조합으로 시험한다. 특정 언어의 SDK가 아직 없다는 사실과 프로토콜이 해당 언어를 제한한다는 말은 다르다.
+## 전송과 처리
+
+원본 ASCII wire를 `POST /sapi`, `application/sapi+jwe`로 전송합니다. 네이티브 바인딩은 HTTP·HTTPS, 인증서 검증, 응답 크기 제한, 전체 응답 종료 시간, 리다이렉트 금지를 적용합니다. 서버는 인증 전 실패를 빈 HTTP 400으로 처리하며 정상 인증된 업무 오류는 암호화합니다.
+
+요청 context는 응답의 kid·ID·원래 요청 해시를 각각 검증하고 한 번만 소비합니다. 업무 소유권·입력 스키마는 서버 policy/validator에 지정합니다. handler가 상태 서비스나 전송 어댑터를 우회해 평문 경로로 노출되지 않도록 endpoint를 연결합니다.
+
+`StaticKeyProvider`·`MemoryReplayStore`는 격리된 로컬 예제에 사용할 수 있습니다. 영속 배포는 위처럼 `StateClient`를 사용합니다. [메시지 규격](../spec/PROTOCOL.md), [새 구현 지침](../spec/IMPLEMENTING.md), [상태 API](../spec/STATE_API.md)에 공통 연결 계약이 있습니다.

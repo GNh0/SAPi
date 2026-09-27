@@ -1,10 +1,11 @@
 {
-  "utc": "2026-09-27T06:12:38.703524+00:00",
+  "utc": "2026-09-27T07:28:25.636485+00:00",
   "passed": [
     "python wheel import/roundtrip",
-    "npm package exports/roundtrip",
-    "NuGet dependency restore/roundtrip/adapter assembly",
-    "Java JAR consumer compile/roundtrip"
+    "state wheel operator init/issue/key",
+    "npm package exports/roundtrip/state export",
+    "NuGet dependency restore/roundtrip/adapter assembly/state API",
+    "Java JAR consumer compile/roundtrip/state API"
   ],
-  "packages_report_sha256": "c6e291bdd9e053ec1028f0df97af7c1cf7403d2abf3707ff0e27dcb1c7364d3a"
+  "packages_report_sha256": "323708134f094c4b2bbaf935139de6958426d5b7d4ad14992c04e3eae1841ad1"
 }

@@ -10,6 +10,7 @@ using SApi.Protocol;
 Console.InputEncoding = Encoding.UTF8; Console.OutputEncoding = new UTF8Encoding(false);
 WebApplication? application = null;
 Codec? codec = null; SecureServer? server = null; var contexts = new Dictionary<string, RequestContext>(); var executions = 0;
+StateClient? state = null;
 object Invoke(JsonElement c)
 {
     string Text(string key) => c.GetProperty(key).GetString()!;
@@ -24,8 +25,15 @@ object Invoke(JsonElement c)
             keys.Add(f.Name, new KeyRecord(Codec.UnB64(f.Value.GetProperty("key").GetString()!), f.Value.GetProperty("subject").GetString()!, scopes));
         }
         Func<long>? clock = c.TryGetProperty("now", out var n) && n.ValueKind != JsonValueKind.Null ? () => (long)n.GetDouble() : null;
-        codec = new Codec(c.TryGetProperty("service", out var svc) ? svc.GetString()! : "demo", keys, clock);
+        state?.Dispose(); state = null;
+        if (c.TryGetProperty("state", out var settings))
+        {
+            state = StateClient.FromPemFiles(new Uri(settings.GetProperty("url").GetString()!), settings.GetProperty("ca_file").GetString()!, settings.GetProperty("certificate").GetString()!, settings.GetProperty("private_key").GetString()!, TimeSpan.FromSeconds(settings.TryGetProperty("timeout", out var t) ? t.GetDouble() : 10));
+        }
+        var service = c.TryGetProperty("service", out var svc) ? svc.GetString()! : "demo";
+        codec = state == null ? new Codec(service, keys, clock) : new Codec(service, state, clock);
         IReplayStore store = c.TryGetProperty("store", out var storeKind) && storeKind.GetString() == "fail" ? new BrokenStore() : new MemoryReplayStore(c.TryGetProperty("capacity", out var cap) ? cap.GetInt32() : 10000);
+        if (state != null) store = state;
         server = new SecureServer(codec, store); executions = 0; contexts.Clear();
         bool OneString(JsonElement d, string field)
         {
@@ -41,7 +49,7 @@ object Invoke(JsonElement c)
     if (action == "derive") return new {key = Convert.ToHexString(codec!.Derive(Text("kid"), Text("dir"))).ToLowerInvariant()};
     if (action == "seal") return new {wire = codec!.Seal(Text("kid"), Text("dir"), c.GetProperty("payload"))};
     if (action == "open") {var o = codec!.Open(Text("wire"), Text("dir")); return new {kid = o.Kid, payload = o.Payload};}
-    if (action == "request") {var ctx = codec!.Request(Text("kid"), Text("op"), c.GetProperty("data")); contexts[Slot()] = ctx; return new {wire = ctx.Wire};}
+    if (action == "request") {var ctx = c.TryGetProperty("subject", out var subject) ? state!.Request(codec!, subject.GetString()!, Text("op"), c.GetProperty("data")) : codec!.Request(Text("kid"), Text("op"), c.GetProperty("data")); contexts[Slot()] = ctx; return new {wire = ctx.Wire};}
     if (action == "accept") return new {payload = codec!.AcceptResponse(contexts[Slot()], Text("wire"))};
     if (action == "handle") return new {wire = server!.Handle(Text("wire"))};
     if (action == "http_server_start")
@@ -66,7 +74,7 @@ object Invoke(JsonElement c)
         try
         {
             using var ca = c.TryGetProperty("ca", out var caFile) ? X509Certificate2.CreateFromPem(File.ReadAllText(caFile.GetString()!)) : null;
-            return new {wire = HttpBinding.ExchangeAsync(new Uri(Text("url")), Text("wire"), ca).GetAwaiter().GetResult()};
+            return new {wire = HttpBinding.ExchangeAsync(new Uri(Text("url")), Text("wire"), ca, deadline: TimeSpan.FromMilliseconds(c.TryGetProperty("timeout_ms", out var timeout) ? timeout.GetDouble() : 30000)).GetAwaiter().GetResult()};
         }
         catch {return new {error = "transport_error"};}
     }

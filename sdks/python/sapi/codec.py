@@ -2,35 +2,41 @@ import hashlib
 import hmac
 import math
 import secrets
-import threading
 import time
+import threading
 from typing import Callable
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from .constants import MAX_WIRE, MAX_BODY, NAME, REQUEST_ID, HEADER_KEYS
 from .errors import SapiError
 from .models import KeyRecord, Principal, RequestContext
+from .keys import KeyProvider, StaticKeyProvider
 from .serialization import b64, unb64, parse, encode, digest
 
 class Codec:
-    def __init__(self, service: str, keys: dict[str, KeyRecord], clock: Callable[[], int] | None = None):
-        if not NAME.fullmatch(service) or not keys or any(not NAME.fullmatch(k) or not isinstance(v, KeyRecord) for k, v in keys.items()):
+    def __init__(self, service: str, keys: dict[str, KeyRecord] | KeyProvider, clock: Callable[[], int] | None = None):
+        if not NAME.fullmatch(service):
             raise ValueError("valid service and key identifiers required")
-        self.service, self._keys = service, dict(keys)
+        if isinstance(keys, dict):
+            if not keys or any(not NAME.fullmatch(k) or not isinstance(v, KeyRecord) for k, v in keys.items()):
+                raise ValueError("valid key records required")
+            keys = StaticKeyProvider(keys)
+        if not callable(getattr(keys, "get", None)) or not callable(getattr(keys, "reserve", None)):
+            raise ValueError("key provider required")
+        self.service, self._provider = service, keys
         self.clock = clock or (lambda: int(time.time()))
-        self._counts = {}
-        self._lock = threading.Lock()
 
     def derive(self, kid: str, direction: str) -> bytes:
-        if direction not in ("req", "res") or kid not in self._keys:
+        if direction not in ("req", "res"):
             raise SapiError()
-        prk = hmac.new(b"SAPI/0.1 HKDF-SHA-256", self._keys[kid].master, hashlib.sha256).digest()
+        return self._derive(kid, direction, self._provider.get(self.service, kid))
+
+    def _derive(self, kid, direction, record):
+        prk = hmac.new(b"SAPI/0.1 HKDF-SHA-256", record.master, hashlib.sha256).digest()
         info = f"SAPI/0.1|{self.service}|{kid}|{direction}".encode("ascii")
         return hmac.new(prk, info + b"\x01", hashlib.sha256).digest()
 
     def principal(self, kid: str) -> Principal:
-        if kid not in self._keys:
-            raise SapiError()
-        record = self._keys[kid]
+        record = self._provider.get(self.service, kid)
         return Principal(record.subject, record.scopes)
 
     def _validate(self, payload, direction):
@@ -67,17 +73,29 @@ class Codec:
         body = encode(payload)
         if len(body) > MAX_BODY:
             raise SapiError()
-        with self._lock:
-            key = (kid, direction)
-            count = self._counts.get(key, 0)
-            if count >= 1048576:
-                raise SapiError("key_rotation_required")
-            self._counts[key] = count + 1
+        record = self._provider.reserve(self.service, kid, direction)
+        return self._seal_reserved(kid, direction, body, record)
+
+    def prepare_response(self, kid):
+        record = self._provider.reserve(self.service, kid, "res")
+        lock, used = threading.Lock(), False
+        def finish(payload):
+            nonlocal used
+            with lock:
+                if used: raise SapiError("reservation_used")
+                used = True
+            self._validate(payload, "res")
+            body = encode(payload)
+            if len(body) > MAX_BODY: raise SapiError()
+            return self._seal_reserved(kid, "res", body, record)
+        return finish
+
+    def _seal_reserved(self, kid, direction, body, record):
         header = {"alg": "dir", "enc": "A256GCM", "typ": "sapi+jwe", "kid": kid,
                   "sapi": "0.1", "dir": direction, "svc": self.service, "crit": ["sapi", "dir", "svc"]}
         protected = b64(encode(header))
         iv = secrets.token_bytes(12)
-        encrypted = AESGCM(self.derive(kid, direction)).encrypt(iv, body, protected.encode("ascii"))
+        encrypted = AESGCM(self._derive(kid, direction, record)).encrypt(iv, body, protected.encode("ascii"))
         return ".".join((protected, "", b64(iv), b64(encrypted[:-16]), b64(encrypted[-16:])))
 
     def open(self, wire: str, direction: str):

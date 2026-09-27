@@ -5,26 +5,29 @@ import sys
 from sapi import Codec, KeyRecord, MemoryReplayStore, SapiError, SecureServer
 from sapi.serialization import unb64
 from sapi.http import exchange
+from sapi.state import StateClient
 
 codec = server = None
+state = None
 contexts = {}
 executions = 0
 
 
 def invoke(command):
-    global codec, server, contexts, executions
+    global codec, server, contexts, executions, state
     action = command["action"]
     if action == "init":
         now = command.get("now")
         keys = {kid: KeyRecord(unb64(v["key"]), v["subject"], frozenset(v["scopes"])) for kid, v in command["keys"].items()}
-        codec = Codec(command.get("service", "demo"), keys, (lambda: now) if now is not None else None)
+        state = StateClient(**command["state"]) if "state" in command else None
+        codec = Codec(command.get("service", "demo"), state or keys, (lambda: now) if now is not None else None)
         if command.get("store") == "fail":
             class BrokenStore:
                 def claim(self, *args):
                     raise RuntimeError("storage unavailable")
             store = BrokenStore()
         else:
-            store = MemoryReplayStore(command.get("capacity", 10000))
+            store = state or MemoryReplayStore(command.get("capacity", 10000))
         server = SecureServer(codec, store)
         contexts, executions = {}, 0
 
@@ -48,7 +51,7 @@ def invoke(command):
         kid, payload = codec.open(command["wire"], command["dir"])
         return {"kid": kid, "payload": payload}
     if action == "request":
-        context = codec.request(command["kid"], command["op"], command["data"])
+        context = state.request(codec, command["subject"], command["op"], command["data"]) if "subject" in command else codec.request(command["kid"], command["op"], command["data"])
         contexts[command.get("slot", "default")] = context
         return {"wire": context.wire}
     if action == "accept":
@@ -57,7 +60,7 @@ def invoke(command):
         return {"wire": server.handle(command["wire"])}
     if action == "http":
         try:
-            return {"wire": exchange(command["url"], command["wire"], ca_file=command.get("ca"))}
+            return {"wire": exchange(command["url"], command["wire"], ca_file=command.get("ca"), timeout=command.get("timeout_ms", 30000) / 1000)}
         except Exception:
             return {"error": "transport_error"}
     if action == "parallel":

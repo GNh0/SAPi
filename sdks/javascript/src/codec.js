@@ -2,24 +2,25 @@
 import {MAX_WIRE, MAX_BODY, NAME, HEADER_KEYS} from './constants.js';
 import {SapiError} from './errors.js';
 import {b64, unb64, object, encode, parse, exact, digest} from './serialization.js';
+import {StaticKeyProvider} from './keys.js';
 const encoder = new TextEncoder();
 
 export class Codec {
-  #keys; #counts = new Map();
+  #provider;
   constructor(service, keys, clock = () => Math.floor(Date.now() / 1000)) {
-    if (typeof service !== 'string' || !NAME.test(service) || !keys || !Object.keys(keys).length) throw new TypeError('service and keys required');
-    this.service = service; this.clock = clock; this.#keys = new Map();
-    for (const [kid, record] of Object.entries(keys)) {
-      if (!NAME.test(kid) || !(record.master instanceof Uint8Array) || record.master.length !== 32 || typeof record.subject !== 'string' || !NAME.test(record.subject)) throw new TypeError('invalid key record');
-      this.#keys.set(kid, {master: new Uint8Array(record.master), subject: record.subject, scopes: new Set(record.scopes ?? [])});
-    }
+    if (typeof service !== 'string' || !NAME.test(service)) throw new TypeError('service required');
+    this.service = service; this.clock = clock;
+    this.#provider = typeof keys?.get === 'function' && typeof keys?.reserve === 'function' ? keys : new StaticKeyProvider(keys);
   }
-  principal(kid) {
-    const p = this.#keys.get(kid); if (!p) throw new SapiError();
+  async principal(kid) {
+    const p = await this.#provider.get(this.service, kid);
     return {subject: p.subject, scopes: new Set(p.scopes)};
   }
   async derive(kid, direction) {
-    const p = this.#keys.get(kid); if (!p || !['req', 'res'].includes(direction)) throw new SapiError();
+    if (!['req', 'res'].includes(direction)) throw new SapiError();
+    return this.#derive(kid, direction, await this.#provider.get(this.service, kid));
+  }
+  async #derive(kid, direction, p) {
     const key = await crypto.subtle.importKey('raw', p.master, 'HKDF', false, ['deriveBits']);
     return new Uint8Array(await crypto.subtle.deriveBits({name: 'HKDF', hash: 'SHA-256', salt: encoder.encode('SAPI/0.1 HKDF-SHA-256'),
       info: encoder.encode(`SAPI/0.1|${this.service}|${kid}|${direction}`)}, key, 256));
@@ -42,11 +43,20 @@ export class Codec {
   async seal(kid, direction, payload) {
     if (!['req', 'res'].includes(direction)) throw new SapiError(); this.validate(payload, direction);
     const body = encode(payload); if (body.length > MAX_BODY) throw new SapiError();
-    const countKey = `${kid}|${direction}`, count = this.#counts.get(countKey) ?? 0;
-    if (count >= 1048576) throw new SapiError('key_rotation_required'); this.#counts.set(countKey, count + 1);
+    return this.#sealReserved(kid, direction, body, await this.#provider.reserve(this.service, kid, direction));
+  }
+  async prepareResponse(kid) {
+    const record = await this.#provider.reserve(this.service, kid, 'res'); let used = false;
+    return async payload => {
+      if (used) throw new SapiError('reservation_used'); used = true;
+      this.validate(payload, 'res'); const body = encode(payload); if (body.length > MAX_BODY) throw new SapiError();
+      return this.#sealReserved(kid, 'res', body, record);
+    };
+  }
+  async #sealReserved(kid, direction, body, record) {
     const header = {alg: 'dir', enc: 'A256GCM', typ: 'sapi+jwe', kid, sapi: '0.1', dir: direction, svc: this.service, crit: ['sapi', 'dir', 'svc']};
     const protectedHeader = b64(encode(header)), iv = crypto.getRandomValues(new Uint8Array(12));
-    const key = await crypto.subtle.importKey('raw', await this.derive(kid, direction), 'AES-GCM', false, ['encrypt']);
+    const key = await crypto.subtle.importKey('raw', await this.#derive(kid, direction, record), 'AES-GCM', false, ['encrypt']);
     const encrypted = new Uint8Array(await crypto.subtle.encrypt({name: 'AES-GCM', iv, additionalData: encoder.encode(protectedHeader), tagLength: 128}, key, body));
     return [protectedHeader, '', b64(iv), b64(encrypted.slice(0, -16)), b64(encrypted.slice(-16))].join('.');
   }

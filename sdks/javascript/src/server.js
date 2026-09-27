@@ -11,7 +11,7 @@ export class SecureServer {
     this.#operations.set(name, {scope, validator, policy, handler});
   }
   async handle(wire) {
-    const {kid, payload: request} = await this.codec.open(wire, 'req'), principal = this.codec.principal(kid), now = this.codec.clock();
+    const {kid, payload: request} = await this.codec.open(wire, 'req'), principal = await this.codec.principal(kid), finish = await this.codec.prepareResponse(kid), now = this.codec.clock();
     const response = {id: request.id, iat: now, exp: now + 60, req: await digest(wire), ok: false};
     try {
       if (await this.replay.claim(`${this.codec.service}|${kid}|${request.id}`, request.exp, this.codec.clock()) !== true) throw new SapiError('replay');
@@ -25,6 +25,6 @@ export class SecureServer {
     } catch (e) {
       response.error = e instanceof SapiError && ['replay', 'replay_capacity', 'unknown_operation', 'forbidden', 'invalid_input'].includes(e.code) ? e.code : 'internal_error';
     }
-    return this.codec.seal(kid, 'res', response);
+    return finish(response);
   }
 }

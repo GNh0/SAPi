@@ -20,6 +20,7 @@ public sealed class SecureServer
     public string Handle(string wire)
     {
         var (kid, request) = codec.Open(wire, "req"); var principal = codec.Principal(kid); var now = codec.Now;
+        var finish = codec.PrepareResponse(kid);
         var response = new Dictionary<string, object> { ["id"] = request.GetProperty("id").GetString()!, ["iat"] = now,
             ["exp"] = now + 60, ["req"] = Codec.Digest(wire), ["ok"] = false };
         try
@@ -38,6 +39,6 @@ public sealed class SecureServer
         }
         catch (SapiException e) { response["error"] = e.Code is "replay" or "replay_capacity" or "unknown_operation" or "forbidden" or "invalid_input" ? e.Code : "internal_error"; }
         catch { response["error"] = "internal_error"; }
-        return codec.Seal(kid, "res", Codec.Json(response));
+        return finish(Codec.Json(response));
     }
 }

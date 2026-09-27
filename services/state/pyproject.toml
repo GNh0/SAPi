@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=84"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sapi-state"
+version = "0.1.0a2"
+description = "SAPI durable replay and mTLS key lifecycle authority"
+requires-python = ">=3.10"
+dependencies = ["sapi-protocol==0.1.0a2", "cryptography>=50.0.1,<51"]
+
+[project.optional-dependencies]
+postgres = ["psycopg[binary]>=3.3.6,<4"]
+
+[project.scripts]
+sapi-state = "sapi_state.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["sapi_state*"]
