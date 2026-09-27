@@ -5,6 +5,7 @@ import socket
 import ssl
 import threading
 from sapi.serialization import parse
+from sapi.http_limits import LimitedMetadataReader
 from .vault import Identity, StateError, canonical
 
 OPERATIONS = {
@@ -12,6 +13,8 @@ OPERATIONS = {
     "rotate": ({"service", "kid"}, set()), "revoke": ({"service", "kid"}, set()),
     "active": ({"service", "subject"}, set()), "key": ({"service", "kid"}, set()),
     "reserve": ({"service", "kid", "direction"}, set()), "claim": ({"name", "expiry"}, set()),
+    "admit": ({"service", "kid", "operation"}, {"requests", "period"}),
+    "quota": ({"service","subject","requests","period"},set()),
     "rewrap": ({"root_id"}, set()), "audit": (set(), {"anchor", "after"})}
 
 
@@ -32,6 +35,11 @@ def make_server(authority, identities, *, certificate, private_key, ca_file, hos
     permits = threading.BoundedSemaphore(capacity)
     class Handler(BaseHTTPRequestHandler):
         protocol_version = "HTTP/1.1"
+        def setup(self):
+            super().setup();self.rfile=LimitedMetadataReader(self.rfile)
+        def handle(self):
+            try:super().handle()
+            except Exception:self.close_connection=True
         def log_message(self, *_): pass
         def do_POST(self):
             try:
@@ -40,7 +48,7 @@ def make_server(authority, identities, *, certificate, private_key, ca_file, hos
                 if actor is None: raise StateError("forbidden")
                 lengths = self.headers.get_all("Content-Length", [])
                 types = self.headers.get_all("Content-Type", [])
-                if self.path != "/v1/state" or len(lengths) != 1 or not lengths[0].isdigit() or not 1 <= int(lengths[0]) <= 16384 or types != ["application/json"] or self.headers.get("Transfer-Encoding") or self.headers.get("Content-Encoding") or self.headers.get("Origin"):
+                if self.path != "/v1/state" or len(lengths) != 1 or not lengths[0].isdigit() or not 1 <= int(lengths[0]) <= 16384 or types != ["application/json"] or self.headers.get("Transfer-Encoding") is not None or self.headers.get("Content-Encoding") is not None or self.headers.get("Origin") is not None:
                     raise StateError("invalid_input")
                 raw = self.rfile.read(int(lengths[0]))
                 if len(raw) != int(lengths[0]): raise StateError("invalid_input")

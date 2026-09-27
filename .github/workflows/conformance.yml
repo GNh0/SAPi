@@ -34,6 +34,10 @@ jobs:
         run: python tools/verify_state.py --work-dir "${{ runner.temp }}/sapi-validation"
       - name: Check exact dependency versions against OSV
         run: python tools/audit_dependencies.py --work-dir "${{ runner.temp }}/sapi-validation"
+      - name: Verify closed schemas, owned SQL and shared admission
+        run: python tools/verify_security.py --work-dir "${{ runner.temp }}/sapi-validation"
+      - name: Verify declarative application service and fixed HTTPS destinations
+        run: python tools/verify_application.py --work-dir "${{ runner.temp }}/sapi-validation"
       - name: Build local packages
         run: python tools/package.py --work-dir "${{ runner.temp }}/sapi-validation" --output-dir "${{ runner.temp }}/sapi-packages"
       - name: Consume packaged SDKs in isolated projects
@@ -45,6 +49,8 @@ jobs:
           path: |
             ${{ runner.temp }}/sapi-validation/verification.json
             ${{ runner.temp }}/sapi-validation/state-verification.json
+            ${{ runner.temp }}/sapi-validation/security-verification.json
+            ${{ runner.temp }}/sapi-validation/application-verification.json
             ${{ runner.temp }}/sapi-validation/dependency-audit.json
             ${{ runner.temp }}/sapi-validation/packages.json
             ${{ runner.temp }}/sapi-validation/package-smoke.json
@@ -85,8 +91,14 @@ jobs:
         run: >-
           python tools/verify_state.py --work-dir "${{ runner.temp }}/sapi-validation"
           --postgres "postgresql://sapi_test:disposable_ci_database@127.0.0.1:5432/sapi_test?sslmode=disable"
+      - name: Verify application PostgreSQL ownership and bound records
+        run: >-
+          python tools/verify_application.py --work-dir "${{ runner.temp }}/sapi-validation"
+          --postgres "postgresql://sapi_test:disposable_ci_database@127.0.0.1:5432/sapi_test?sslmode=disable"
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
           name: verification-postgres
-          path: ${{ runner.temp }}/sapi-validation/state-verification.json
+          path: |
+            ${{ runner.temp }}/sapi-validation/state-verification.json
+            ${{ runner.temp }}/sapi-validation/application-verification.json

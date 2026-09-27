@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "sapi-protocol"
-version = "0.1.0a2"
+version = "0.1.0a3"
 description = "Experimental transport-independent SAPI/0.1 message security"
 readme = "README.md"
 requires-python = ">=3.10"

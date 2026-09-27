@@ -7,8 +7,8 @@ State Authority는 키 수명·사용량과 재전송 예약을 여러 SDK에서
 빌드한 패키지 폴더에서 설치합니다.
 
 ```text
-python -m pip install --find-links /absolute/path/dist sapi-state==0.1.0a2
-python -m pip install --find-links /absolute/path/dist "sapi-state[postgres]==0.1.0a2"
+python -m pip install --find-links /absolute/path/dist sapi-state==0.1.0a3
+python -m pip install --find-links /absolute/path/dist "sapi-state[postgres]==0.1.0a3"
 ```
 
 첫 명령은 SQLite용이고 두 번째 명령은 PostgreSQL 드라이버도 설치합니다. 초기화는 기존 운영 디렉터리나 비밀 파일을 덮어쓰지 않습니다.
@@ -30,6 +30,7 @@ sapi-state serve --config /secure/sapi/operator/config.json
 sapi-state issue --config /secure/sapi/operator/config.json --service orders --subject client-1 --scope orders --ttl 86400
 sapi-state rotate --config /secure/sapi/operator/config.json --service orders --kid KEY_ID
 sapi-state revoke --config /secure/sapi/operator/config.json --service orders --kid KEY_ID
+sapi-state quota --config /secure/sapi/operator/config.json --service orders --subject client-1 --requests 120 --period 60
 sapi-state audit --config /secure/sapi/operator/config.json --output /secure/reports/audit.json
 ```
 

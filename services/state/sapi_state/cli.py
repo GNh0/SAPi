@@ -67,9 +67,11 @@ def _main(argv=None):
     init = sub.add_parser("init"); init.add_argument("--directory", required=True); init.add_argument("--anchor-directory", required=True)
     init.add_argument("--host", default="127.0.0.1"); init.add_argument("--port", type=int, default=8443)
     init.add_argument("--service", required=True); init.add_argument("--subject", required=True); init.add_argument("--database")
-    for command in ("serve", "issue", "rotate", "revoke", "audit", "root-add", "rewrap", "root-retire", "enroll", "identity-revoke", "server-renew", "recover"):
+    for command in ("serve", "issue", "rotate", "revoke", "quota", "audit", "root-add", "rewrap", "root-retire", "enroll", "identity-revoke", "server-renew", "recover"):
         child = sub.add_parser(command); child.add_argument("--config", required=True)
-        if command in ("issue", "rotate", "revoke"): child.add_argument("--service", required=True)
+        if command in ("issue", "rotate", "revoke", "quota"): child.add_argument("--service", required=True)
+        if command == "quota":
+            child.add_argument("--subject",required=True);child.add_argument("--requests",type=int,required=True);child.add_argument("--period",type=int,required=True)
         if command in ("rotate", "revoke"): child.add_argument("--kid", required=True)
         if command == "issue":
             child.add_argument("--subject", required=True); child.add_argument("--scope", action="append", required=True)
@@ -94,8 +96,8 @@ def _main(argv=None):
             except KeyboardInterrupt: pass
             finally: server.server_close()
             return
-        elif args.command in ("issue", "rotate", "revoke", "rewrap"):
-            parameters = {k: getattr(args, k) for k in ("service", "subject", "kid", "ttl", "message_limit", "root_id") if hasattr(args, k)}
+        elif args.command in ("issue", "rotate", "revoke", "rewrap", "quota"):
+            parameters = {k: getattr(args, k) for k in ("service", "subject", "kid", "ttl", "message_limit", "root_id", "requests", "period") if hasattr(args, k)}
             if args.command == "issue": parameters["scopes"] = args.scope
             result = admin_client(config).call(args.command, **parameters)
         elif args.command == "audit":

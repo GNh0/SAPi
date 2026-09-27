@@ -1,6 +1,6 @@
 # 설치와 SDK 사용
 
-패키지 버전은 `0.1.0-alpha.2`(Python `0.1.0a2`)입니다. 공개 레지스트리 게시 없이 로컬 패키지로 설치합니다.
+패키지 버전은 `0.1.0-alpha.3`(Python `0.1.0a3`)입니다. 공개 레지스트리 게시 없이 로컬 패키지로 설치합니다.
 
 ## 빌드
 
@@ -11,6 +11,8 @@ $sapiWork = Join-Path $env:TEMP 'sapi-validation'
 python tools/bootstrap.py --work-dir $sapiWork
 python tools/verify.py --work-dir $sapiWork
 python tools/verify_state.py --work-dir $sapiWork
+python tools/verify_security.py --work-dir $sapiWork
+python tools/verify_application.py --work-dir $sapiWork
 python tools/audit_dependencies.py --work-dir $sapiWork
 python tools/package.py --work-dir $sapiWork --output-dir "$PWD/dist"
 python tools/smoke_packages.py --work-dir $sapiWork --package-dir "$PWD/dist"
@@ -20,11 +22,11 @@ Linux/macOS는 같은 명령에 절대 scratch 경로를 지정합니다. 패키
 
 | 패키지 | 설치·참조 |
 | --- | --- |
-| .NET | `dotnet add package SApi.Protocol --version 0.1.0-alpha.2 --source /absolute/path/dist` |
+| .NET | `dotnet add package SApi.Protocol --version 0.1.0-alpha.3 --source /absolute/path/dist` |
 | ASP.NET Core | `SApi.AspNetCore` 같은 버전 추가 |
-| Python | `python -m pip install /absolute/path/dist/sapi_protocol-0.1.0a2-py3-none-any.whl` |
-| 상태 서비스 | `python -m pip install --find-links /absolute/path/dist sapi-state==0.1.0a2` |
-| JavaScript | `npm install /absolute/path/dist/sapi-protocol-0.1.0-alpha.2.tgz` |
+| Python | `python -m pip install /absolute/path/dist/sapi_protocol-0.1.0a3-py3-none-any.whl` |
+| 상태 서비스 | `python -m pip install --find-links /absolute/path/dist sapi-state==0.1.0a3` |
+| JavaScript | `npm install /absolute/path/dist/sapi-protocol-0.1.0-alpha.3.tgz` |
 | Java | JAR와 Jackson 의존성을 classpath에 추가하거나 JAR/POM을 로컬 Maven 저장소에 등록 |
 
 Java 일반 프로젝트는 `mvn -f sdks/java/pom.xml package`를 사용할 수 있습니다. 공통 시험·패키징 도구는 javac/JAR 경로를 사용합니다.
@@ -37,7 +39,7 @@ Java 일반 프로젝트는 `mvn -f sdks/java/pom.xml package`를 사용할 수 
 sapi-state issue --config /secure/sapi/operator/config.json --service orders --subject client-1 --scope echo
 ```
 
-`StateClient`는 키 공급자와 재전송 저장소를 함께 구현합니다. 클라이언트 요청 함수는 활성 키 조회·자동 회전 경합 처리를 포함합니다. `SecureServer`에는 validator·policy·handler가 모두 있어야 합니다.
+`StateClient`는 키 공급자와 재전송 저장소를 함께 구현합니다. 클라이언트 요청 함수는 활성 키 조회·자동 회전 경합 처리를 포함합니다. `SecureServer`에는 입력 스키마·출력 스키마·policy·handler가 모두 있어야 합니다.
 
 ## Python
 
@@ -54,8 +56,8 @@ service_state = StateClient("https://127.0.0.1:8443",
     private_key="/secure/service.key")
 client = Codec("orders", client_state)
 server = SecureServer(Codec("orders", service_state), service_state)
-server.register("echo", "echo",
-    lambda d: set(d) == {"message"} and isinstance(d["message"], str),
+schema = {"type":"object","properties":{"message":{"type":"string","maxBytes":128}}}
+server.register("echo", "echo", schema, schema,
     lambda p, d: p.subject == "client-1",
     lambda p, d: {"message": d["message"]})
 
@@ -82,8 +84,8 @@ const clientState = new StateClient('https://127.0.0.1:8443', options('client'))
 const serviceState = new StateClient('https://127.0.0.1:8443', options('service'));
 const client = new Codec('orders', clientState);
 const server = new SecureServer(new Codec('orders', serviceState), serviceState);
-server.register('echo', 'echo',
-  d => Object.keys(d).length === 1 && typeof d.message === 'string',
+const schema = {type:'object', properties:{message:{type:'string',maxBytes:128}}};
+server.register('echo', 'echo', schema, schema,
   p => p.subject === 'client-1',
   (p, d) => ({message: d.message}));
 const context = await clientState.request(client, 'client-1', 'echo', {message: 'hello'});
@@ -91,7 +93,7 @@ const response = await server.handle(context.wire);
 const payload = await client.acceptResponse(context, response);
 ```
 
-핵심 ESM은 Web Crypto를 사용하고 Node.js 상태 어댑터는 별도 export입니다. 브라우저에 개인 인증서·공유 키를 배포하지 않습니다. 다른 런타임은 동일 `get/reserve`·`claim` 계약을 해당 환경의 신뢰한 상태 연결로 구현할 수 있습니다.
+핵심 ESM은 Web Crypto를 사용하고 Node.js 상태 어댑터는 별도 export입니다. 브라우저에 개인 인증서·공유 키를 배포하지 않습니다. 다른 런타임은 동일 `get/reserve`·`admit/claim` 계약을 해당 환경의 신뢰한 상태 연결로 구현할 수 있습니다.
 
 ## .NET / ASP.NET Core
 
@@ -105,9 +107,8 @@ using var serviceState = StateClient.FromPemFiles(new Uri("https://127.0.0.1:844
     "/secure/ca.pem", "/secure/service.pem", "/secure/service.key");
 var client = new Codec("orders", clientState);
 var server = new SecureServer(new Codec("orders", serviceState), serviceState);
-server.Register("echo", "echo",
-    d => d.EnumerateObject().Count() == 1 &&
-         d.TryGetProperty("message", out var m) && m.ValueKind == System.Text.Json.JsonValueKind.String,
+var schema = Codec.Json(new {type="object",properties=new {message=new {type="string",maxBytes=128}}});
+server.Register("echo", "echo", schema, schema,
     (p, d) => p.Subject == "client-1",
     (p, d) => d);
 var context = clientState.Request(client, "client-1", "echo", Codec.Json(new {message = "hello"}));
@@ -133,8 +134,9 @@ StateClient serviceState = new StateClient(URI.create("https://127.0.0.1:8443"),
     new File("/secure/ca.pem"), new File("/secure/service.pem"), new File("/secure/service.key"));
 Codec client = new Codec("orders", clientState);
 SecureServer server = new SecureServer(new Codec("orders", serviceState), serviceState);
-server.register("echo", "echo",
-    d -> d.isObject() && d.size() == 1 && d.has("message") && d.get("message").isTextual(),
+var schema = Sapi.object().put("type","object");
+schema.set("properties", Sapi.object().set("message", Sapi.object().put("type","string").put("maxBytes",128)));
+server.register("echo", "echo", schema, schema,
     (p, d) -> p.subject.equals("client-1"),
     (p, d) -> d);
 RequestContext context = clientState.request(client, "client-1", "echo", Sapi.object().put("message", "hello"));
@@ -147,6 +149,16 @@ Java 상태 어댑터는 PKCS#8 PEM EC/RSA 키를 지원하고 인증서 trust s
 
 원본 ASCII wire를 `POST /sapi`, `application/sapi+jwe`로 전송합니다. 네이티브 바인딩은 HTTP·HTTPS, 인증서 검증, 응답 크기 제한, 전체 응답 종료 시간, 리다이렉트 금지를 적용합니다. 서버는 인증 전 실패를 빈 HTTP 400으로 처리하며 정상 인증된 업무 오류는 암호화합니다.
 
-요청 context는 응답의 kid·ID·원래 요청 해시를 각각 검증하고 한 번만 소비합니다. 업무 소유권·입력 스키마는 서버 policy/validator에 지정합니다. handler가 상태 서비스나 전송 어댑터를 우회해 평문 경로로 노출되지 않도록 endpoint를 연결합니다.
+요청 context는 응답의 kid·ID·원래 요청 해시를 각각 검증하고 한 번만 소비합니다. 입력·출력 스키마와 policy를 등록하며 업무 소유권은 인증 주체와 실제 DB 조건으로 검사합니다. handler가 상태 서비스나 전송 어댑터를 우회해 평문 경로로 노출되지 않도록 endpoint를 연결합니다.
 
 `StaticKeyProvider`·`MemoryReplayStore`는 격리된 로컬 예제에 사용할 수 있습니다. 영속 배포는 위처럼 `StateClient`를 사용합니다. [메시지 규격](../spec/PROTOCOL.md), [새 구현 지침](../spec/IMPLEMENTING.md), [상태 API](../spec/STATE_API.md)에 공통 연결 계약이 있습니다.
+
+## 처리 보안과 alpha.3 변경
+
+`register/Register`에는 닫힌 입력·출력 object 스키마가 필수입니다. 예전 validator callback은 스키마를 대신하지 않습니다. [공통 스키마](../spec/APPLICATION_SECURITY.md)의 타입·필드·깊이·바이트·숫자 범위를 모든 SDK가 검사합니다. handler 직전에 만료를 다시 확인하고 잘못된 출력은 암호화된 오류로 처리합니다.
+
+`OwnedSql`은 고정된 테이블·id/owner 열과 조회·변경 열 목록을 받아 select/update/insert/delete 계획을 만듭니다. `Principal/KeyRecord`와 id를 넣으며 사용자 요청에 owner·열 이름·SQL을 선택하게 하지 않습니다. Python `SqlPlan.execute(connection)`은 DB-API, JavaScript `execute(client)`는 PostgreSQL query, .NET `CreateCommand(connection)`은 ADO.NET parameters, Java `prepare(connection)`은 JDBC PreparedStatement를 사용합니다. Python/JavaScript/.NET의 `bind/Bind`, Java의 `text(dialect)`와 `values()`는 qmark/format/dollar/named 문법과 값을 분리합니다.
+
+작업의 호출 제한은 기본 60회/60초입니다. `inventory/Inventory`는 name/scope/requests/period를 반환합니다. 관리된 배포는 `StateClient`를 재전송 저장소로 전달하여 모든 프로세스의 주체별 quota와 작업별 한도를 공유합니다. custom ReplayStore는 `admit/Admit` 계약도 구현해야 하며 미구현·장애 시 처리하지 않습니다. 메모리 저장소는 재시작과 별도 프로세스 사이에서 상태를 공유하지 않습니다.
+
+선언형 DB·업무 상태·고정 외부 요청 서버는 [애플리케이션 서비스](APPLICATION.md)에 있습니다. 자유롭게 추가한 handler의 외부 부작용은 출력 검사만으로 되돌릴 수 없으므로 실제 거래 경계 안에서 검사와 커밋을 구성합니다.

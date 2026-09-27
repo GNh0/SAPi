@@ -38,6 +38,7 @@ class Authority:
         if capacity < 1: raise ValueError("positive replay capacity required")
         self.db, self.keks, self.primary, self.audit_key = database, dict(keks), primary, bytes(audit_key)
         self.capacity, self.clock = capacity, clock or (lambda: int(time.time()))
+        self.rate_capacity = 100000
         self.anchor_path = Path(anchor_path)
         with self.db.transaction() as tx:
             checkpoint = self._verify_audit(tx)
@@ -65,6 +66,12 @@ class Authority:
             for row in tx.execute("SELECT * FROM sapi_keys").fetchall():
                 self._check_row("key", row, tx)
                 if row["sealed"] is not None: self._decrypt(row, tx)
+            for table,prefix,count_name in (("sapi_rates","rate|","rate-count"),("sapi_quotas","quota|","quota-count")):
+                rows=tx.execute("SELECT * FROM " + table).fetchall()
+                if len(rows)!=int(tx.tree.get(count_name) or "0"): raise StateError("state_tampered")
+                for row in rows:
+                    name=row["name"] if table=="sapi_rates" else row["service"]+"|"+row["subject"]
+                    if tx.tree.get(prefix+name)!=hashlib.sha256(canonical(dict(row))).hexdigest(): raise StateError("state_tampered")
             self._write_anchor(dict(checkpoint, root=tx.tree.root, clock=anchor["clock"] if self.anchor_path.exists() else int(self.clock())))
 
     def _read_anchor(self):
@@ -293,6 +300,66 @@ class Authority:
             tx.tree.set("replay-count", str(count + 1))
             self._audit(tx, actor, "claim", {"service": service, "kid": kid, "request_id": request_id, "expiry": expiry})
         return {"claimed": True}
+
+    def admit(self, actor, service, kid, operation, requests=60, period=60):
+        """Global subject limit plus trusted operation limit; survives key rotation."""
+        if actor.role not in ("admin", "service"): raise StateError("forbidden")
+        if not isinstance(operation, str) or not NAME.fullmatch(operation) or type(requests) is not int or not 1 <= requests <= 10000 or type(period) is not int or not 1 <= period <= 3600: raise StateError("invalid_input")
+        with self._transaction() as tx:
+            now = self._now(tx); key_row, _, _ = self._live(tx, actor, service, kid, now)
+            quota=tx.execute("SELECT * FROM sapi_quotas WHERE service=? AND subject=?",(service,key_row["subject"])).fetchone()
+            committed=tx.tree.get("quota|"+service+"|"+key_row["subject"])
+            if (quota is None and committed is not None) or (quota is not None and committed!=hashlib.sha256(canonical(dict(quota))).hexdigest()): raise StateError("state_tampered")
+            expired=tx.execute("SELECT * FROM sapi_rates WHERE expiry<=? ORDER BY expiry LIMIT 1000",(now,)).fetchall()
+            for row in expired:
+                if tx.tree.get("rate|"+row["name"])!=hashlib.sha256(canonical(dict(row))).hexdigest(): raise StateError("state_tampered")
+                tx.execute("DELETE FROM sapi_rates WHERE name=?",(row["name"],));tx.tree.set("rate|"+row["name"],None)
+            if expired:
+                tx.tree.set("rate-count",str(int(tx.tree.get("rate-count") or "0")-len(expired)))
+                self._audit(tx,actor,"rate_expire",{"count":len(expired)})
+            pending = []
+            for name, count, seconds in (("global|" + service + "|" + key_row["subject"], quota["requests"] if quota else 60, quota["period"] if quota else 60), ("op|" + service + "|" + key_row["subject"] + "|" + operation, requests, period)):
+                row = tx.execute("SELECT * FROM sapi_rates WHERE name=?", (name,)).fetchone()
+                committed = tx.tree.get("rate|" + name)
+                if (row is None and committed is not None) or (row is not None and committed != hashlib.sha256(canonical(dict(row))).hexdigest()): raise StateError("state_tampered")
+                if row is None:
+                    rows = int(tx.tree.get("rate-count") or "0")
+                    if rows + len([r for r in pending if r[1]]) >= self.rate_capacity: raise StateError("rate_capacity")
+                started, used = (row["started"], row["used"]) if row else (now, 0)
+                # Changing a configured period never resets a live counter.
+                effective_period = max(seconds, row["period"] if row else seconds)
+                if now >= started + effective_period: started, used, effective_period = now, 0, seconds
+                if used >= count: return {"admitted": False}
+                pending.append(({"name": name, "started": started, "period": effective_period, "requests": count, "used": used + 1, "expiry":started+effective_period}, row is None))
+            for row, created in pending:
+                tx.execute("INSERT INTO sapi_rates VALUES(?,?,?,?,?,?) ON CONFLICT(name) DO UPDATE SET started=excluded.started,period=excluded.period,requests=excluded.requests,used=excluded.used,expiry=excluded.expiry", (row["name"], row["started"], row["period"], row["requests"], row["used"],row["expiry"]))
+                tx.tree.set("rate|" + row["name"], hashlib.sha256(canonical(row)).hexdigest())
+                if created: tx.tree.set("rate-count", str(int(tx.tree.get("rate-count") or "0") + 1))
+            self._audit(tx, actor, "admit", {"service": service, "subject": key_row["subject"], "operation": operation})
+        return {"admitted": True}
+
+    def quota(self,actor,service,subject,requests,period):
+        self._authorize(actor,service,admin=True)
+        if not isinstance(service,str) or not NAME.fullmatch(service) or not isinstance(subject,str) or not NAME.fullmatch(subject) or type(requests) is not int or not 1<=requests<=10000 or type(period) is not int or not 1<=period<=3600: raise StateError("invalid_input")
+        with self._transaction() as tx:
+            now=self._now(tx);name="quota|"+service+"|"+subject
+            previous=tx.execute("SELECT * FROM sapi_quotas WHERE service=? AND subject=?",(service,subject)).fetchone();committed=tx.tree.get(name)
+            if (previous is None and committed is not None) or (previous is not None and committed!=hashlib.sha256(canonical(dict(previous))).hexdigest()): raise StateError("state_tampered")
+            count=int(tx.tree.get("quota-count") or "0")
+            if previous is None and count>=self.rate_capacity: raise StateError("rate_capacity")
+            row={"service":service,"subject":subject,"requests":requests,"period":period}
+            tx.execute("INSERT INTO sapi_quotas VALUES(?,?,?,?) ON CONFLICT(service,subject) DO UPDATE SET requests=excluded.requests,period=excluded.period",(service,subject,requests,period))
+            tx.tree.set(name,hashlib.sha256(canonical(row)).hexdigest())
+            if previous is None: tx.tree.set("quota-count",str(count+1))
+            rate_name="global|"+service+"|"+subject
+            rate=tx.execute("SELECT * FROM sapi_rates WHERE name=?",(rate_name,)).fetchone();rate_hash=tx.tree.get("rate|"+rate_name)
+            if (rate is None and rate_hash is not None) or (rate is not None and rate_hash!=hashlib.sha256(canonical(dict(rate))).hexdigest()):raise StateError("state_tampered")
+            if rate is not None and rate["expiry"]>now:
+                updated=dict(rate);updated["period"]=max(rate["period"],period);updated["expiry"]=rate["started"]+updated["period"];updated["requests"]=requests
+                tx.execute("UPDATE sapi_rates SET period=?,expiry=?,requests=? WHERE name=?",(updated["period"],updated["expiry"],requests,rate_name))
+                tx.tree.set("rate|"+rate_name,hashlib.sha256(canonical(updated)).hexdigest())
+            self._audit(tx,actor,"quota",row)
+        return {"configured":True}
 
     @staticmethod
     def _replay_tag(row):

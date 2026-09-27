@@ -1,6 +1,6 @@
 {
   "name": "sapi-protocol",
-  "version": "0.1.0-alpha.2",
+  "version": "0.1.0-alpha.3",
   "type": "module",
   "description": "Experimental transport-independent SAPI/0.1 message security",
   "repository": {"type": "git", "url": "https://github.com/GNh0/SAPi.git"},

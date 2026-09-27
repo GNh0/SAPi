@@ -66,6 +66,7 @@ public final class StateClient implements KeyProvider, ReplayStore {
     public KeyRecord get(String service, String kid) {return record(call("key", object().put("service", service).put("kid", kid)));}
     public KeyRecord reserve(String service, String kid, String direction) {return record(call("reserve", object().put("service", service).put("kid", kid).put("direction", direction)));}
     public boolean claim(String name, long expiry, long now) {return call("claim", object().put("name", name).put("expiry", expiry)).get("claimed").booleanValue();}
+    public boolean admit(String service,String kid,String subject,String operation,long now,int requests,int period) {return call("admit",object().put("service",service).put("kid",kid).put("operation",operation).put("requests",requests).put("period",period)).get("admitted").booleanValue();}
     public RequestContext request(Codec codec, String subject, String operation, JsonNode data) {
         for (int n = 0; ; n++) {
             String kid = text(call("active", object().put("service", codec.service).put("subject", subject)).get("kid"));

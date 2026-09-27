@@ -5,6 +5,9 @@ from pathlib import Path
 import sqlite3
 
 SCHEMA = (
+    "CREATE TABLE IF NOT EXISTS sapi_rates (name TEXT PRIMARY KEY, started BIGINT NOT NULL, period BIGINT NOT NULL, requests BIGINT NOT NULL, used BIGINT NOT NULL, expiry BIGINT NOT NULL)",
+    "CREATE INDEX IF NOT EXISTS sapi_rates_expiry ON sapi_rates(expiry)",
+    "CREATE TABLE IF NOT EXISTS sapi_quotas (service TEXT NOT NULL, subject TEXT NOT NULL, requests BIGINT NOT NULL, period BIGINT NOT NULL, PRIMARY KEY(service,subject))",
     "CREATE TABLE IF NOT EXISTS sapi_tree (name TEXT PRIMARY KEY, digest TEXT NOT NULL, priority TEXT NOT NULL, left_name TEXT, left_hash TEXT NOT NULL, right_name TEXT, right_hash TEXT NOT NULL, hash TEXT NOT NULL)",
     "CREATE TABLE IF NOT EXISTS sapi_meta (name TEXT PRIMARY KEY, value TEXT NOT NULL)",
     "CREATE TABLE IF NOT EXISTS sapi_roots (root_id TEXT PRIMARY KEY, nonce TEXT NOT NULL, proof TEXT NOT NULL, wraps BIGINT NOT NULL, tag TEXT NOT NULL)",
@@ -24,8 +27,8 @@ class Transaction:
         return self.connection.execute(statement.replace("?", "%s") if self.postgres else statement, values)
 
 
-class Database:
-    def __init__(self, target: str, *, allow_local_postgres=False, timeout=5):
+class SqlStorage:
+    def __init__(self, target: str, *, schema=(), allow_local_postgres=False, timeout=5):
         self.target, self.timeout = target, timeout
         self.postgres = target.startswith(("postgresql://", "postgres://"))
         if self.postgres:
@@ -51,10 +54,7 @@ class Database:
             finally:
                 connection.close()
         with self.transaction() as tx:
-            for statement in SCHEMA: tx.execute(statement)
-            row = tx.execute("SELECT value FROM sapi_meta WHERE name='schema'").fetchone()
-            if row is not None and row["value"] != "1": raise RuntimeError("unsupported state schema")
-            tx.execute("INSERT INTO sapi_meta(name,value) VALUES('schema','1') ON CONFLICT(name) DO NOTHING")
+            for statement in schema: tx.execute(statement)
 
     def _connect(self):
         if self.postgres:
@@ -85,3 +85,12 @@ class Database:
             raise
         finally:
             connection.close()
+
+
+class Database(SqlStorage):
+    def __init__(self,target,*,allow_local_postgres=False,timeout=5):
+        super().__init__(target,schema=SCHEMA,allow_local_postgres=allow_local_postgres,timeout=timeout)
+        with self.transaction() as tx:
+            row=tx.execute("SELECT value FROM sapi_meta WHERE name='schema'").fetchone()
+            if row is not None and row["value"]!="1":raise RuntimeError("unsupported state schema")
+            tx.execute("INSERT INTO sapi_meta(name,value) VALUES('schema','1') ON CONFLICT(name) DO NOTHING")

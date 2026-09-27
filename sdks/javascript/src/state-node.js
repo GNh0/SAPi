@@ -42,6 +42,7 @@ export class StateClient {
   async reserve(service, kid, direction) {return this.#record(await this.call('reserve', {service, kid, direction}));}
   #record(value) {return {master: unb64(value.master), subject: value.subject, scopes: new Set(value.scopes)};}
   async claim(name, expiry, now) {return (await this.call('claim', {name, expiry})).claimed === true;}
+  async admit(service,kid,subject,operation,now,requests=60,period=60) {return (await this.call('admit',{service,kid,operation,requests,period})).admitted === true;}
   async request(codec, subject, operation, data) {
     for (let n = 0; n < 3; n++) {
       const {kid} = await this.call('active', {service: codec.service, subject});

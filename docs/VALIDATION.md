@@ -1,16 +1,8 @@
 # 검증 기록
 
-2026-09-27 Windows에서 `alpha.2` 소스의 메시지 시험 **292/292**, 영속 상태 시험 **49/49**, 패키지 소비 **5종**이 통과했습니다. SDK·상태 서비스 패키지 **9개**를 생성했고 OSV 의존성 조회 **17개 패키지, 발견 0건**을 확인했습니다.
+2026-09-27 Windows에서 `alpha.3` 소스의 메시지 **292/292**, 영속 상태 **50/50**, 처리 보안 **31/31**, 애플리케이션 **14/14**가 통과했습니다. 패키지 **11개**를 생성하고 별도 프로젝트의 소비 **6종**을 실행했습니다. OSV의 정확한 의존성 조회는 **17개, 공지 발견 0건**입니다.
 
-같은 구현 커밋 [`dcb5172`](https://github.com/GNh0/SAPi/commit/dcb5172da8802620ad0faecac1b942b291d8f3ae)의 [GitHub CI 실행](https://github.com/GNh0/SAPi/actions/runs/36303335452)도 세 작업 모두 통과했습니다. 내려받은 보고서의 SDK·서비스 소스 해시 62개와 패키지·보고서 해시를 대조했습니다.
-
-| CI 작업 | 메시지 | 영속 상태 | 패키지 소비 | 패키지 생성 | 의존성 조회 |
-| --- | --- | --- | --- | --- | --- |
-| Windows | 292/292 | SQLite 49/49 | 5종 | 9개 | 16개, 발견 0건 |
-| Ubuntu | 292/292 | SQLite 49/49 | 5종 | 9개 | 14개, 발견 0건 |
-| PostgreSQL | — | SQLite·PostgreSQL 50/50 | — | — | — |
-
-PostgreSQL 결과의 50개 중 49개는 공통 상태 시험이고, 추가 1개는 실제 PostgreSQL에서 공유 authority·프로세스·SDK 조합을 묶어서 실행한 시험입니다. 운영체제와 Python 버전에 따라 설치되는 의존성 수는 다릅니다.
+현재 [GitHub CI](https://github.com/GNh0/SAPi/actions/workflows/conformance.yml)는 Windows·Ubuntu의 같은 검사와 패키징, 전용 PostgreSQL 컨테이너의 상태·애플리케이션 검사를 실행합니다. 실행별 보고서와 패키지를 artifact로 보관합니다. 이전 alpha.2의 [세 작업 통과 기록](https://github.com/GNh0/SAPi/actions/runs/36303335452)은 새 기능 검증과 구분합니다.
 
 ## 검사 범위
 
@@ -31,7 +23,14 @@ PostgreSQL 결과의 50개 중 49개는 공통 상태 시험이고, 추가 1개�
 | 상태 무결성 | 서명된 옛 키 행·삭제된 replay·root 카운터·audit/checkpoint 수정 거절 |
 | 인증 상태 트리 | 500회 seeded 삽입/수정/삭제와 모델 대조 |
 | 시간 제한 | 지속해서 도착하는 HTTP 본문도 네 SDK의 전체 응답 deadline으로 종료 |
-| 패키지 소비 | NuGet, npm, Python SDK/state wheel, Java JAR를 별도 프로젝트에서 사용 |
+| 처리 스키마 | 네 SDK의 닫힌 필드·NoSQL 연산자·타입 혼동·UTF-8·null 설정·완전 문자열 끝 |
+| 실제 SQL | 네 SDK SQL 계획을 SQLite에 바인딩 실행, 소유자·변경 열·casefold 불변 열 검사 |
+| 처리 파이프라인 | 16개 SDK 조합의 추가 필드·기능 scope·비밀 출력·작업 한도 |
+| 주체 quota | 동시 authority·별도 프로세스, 재시작·키 회전·기간 연장, 상태 삭제 탐지 |
+| 선언형 서비스 | 네 클라이언트 × HTTP/HTTPS의 SQL·소유권·필드·업무 전이 |
+| DB 거래 경계 | 16개 동시 기대 버전 변경 중 1개, 출력 실패 롤백과 버전 상한 |
+| 외부 요청 | IP·DNS 고정·리다이렉트·TLS 호스트·시간·헤더·framing·짧은 본문·출력 검사 |
+| 패키지 소비 | NuGet, npm, Python SDK/state/application wheel, Java JAR를 별도 프로젝트에서 사용 |
 
 HTTP·HTTPS 조합의 서버 소켓은 Python 전송 어댑터이며 메시지 복호화·정책·처리·응답 암호화는 각 언어의 별도 프로세스가 수행합니다. ASP.NET Core는 실제 Kestrel도 별도로 시험합니다.
 
@@ -41,6 +40,9 @@ HTTP·HTTPS 조합의 서버 소켓은 Python 전송 어댑터이며 메시지 �
 
 - [메시지 결과](../tests/results/verification-windows.json)
 - [상태·수명·장애 결과](../tests/results/state-verification-windows.json)
+- [처리 보안 결과](../tests/results/security-verification-windows.json)
+- [애플리케이션 결과](../tests/results/application-verification-windows.json)
+- [추가 독립 코드 리뷰](../tests/results/application-review-agent.md)
 - [패키지 SHA-256](../tests/results/packages-windows.json)
 - [패키지 소비 결과](../tests/results/package-smoke-windows.json)
 - [의존성 조회](../tests/results/dependency-audit-windows.json)
@@ -50,9 +52,9 @@ HTTP·HTTPS 조합의 서버 소켓은 Python 전송 어댑터이며 메시지 �
 - [Ubuntu 상태 결과](../tests/results/state-verification-ubuntu.json)
 - [실제 PostgreSQL 상태 결과](../tests/results/state-verification-postgres.json)
 
-각 시험 보고서는 사용한 SDK/서비스 소스 SHA-256을 기록하고 패키지는 두 통과 보고서와 소스 일치를 요구합니다. 시험·운영 개인 키는 기록에 포함하지 않습니다.
+각 시험 보고서는 사용한 SDK/서비스 소스 SHA-256을 기록하고 패키지는 네 통과 보고서 각각의 소스 일치를 요구합니다. 시험·운영 개인 키는 기록에 포함하지 않습니다.
 
-Windows 환경은 Python 3.10.4, cryptography 50.0.1, psycopg 3.3.6, Node.js 24.13.1, .NET SDK 9.0.308(net8.0 target), Microsoft JDK 11.0.16.1입니다. Jackson core/databind 2.22.3·annotations 2.22, setuptools 84.0.0·wheel 0.48.0을 사용합니다. 운영 런타임/OS 패치와 미보고 취약점은 의존성 공지 조회와 별개입니다.
+Windows 환경은 Python 3.10.4, cryptography 50.0.1, psycopg 3.3.6, Node.js 24.13.1, .NET SDK 9.0.308(net8.0 target), Microsoft JDK 11.0.16.1입니다. Jackson core/databind 2.22.3·annotations 2.22, setuptools 84.0.0·wheel 0.48.0을 사용합니다. 운영 런타임/OS 패치와 미보고 취약점은 의존성 공지 조회와 별개입니다. SQL 계획은 네 SDK가 생성하고 실제 SQLite DB-API로 실행합니다. Java JDBC·.NET ADO.NET 외부 DB 드라이버별 실제 연결 검증과 구분합니다.
 
 ## 재현
 
@@ -60,11 +62,13 @@ Windows 환경은 Python 3.10.4, cryptography 50.0.1, psycopg 3.3.6, Node.js 24.
 python tools/bootstrap.py --work-dir /absolute/scratch/sapi
 python tools/verify.py --work-dir /absolute/scratch/sapi
 python tools/verify_state.py --work-dir /absolute/scratch/sapi
+python tools/verify_security.py --work-dir /absolute/scratch/sapi
+python tools/verify_application.py --work-dir /absolute/scratch/sapi
 python tools/audit_dependencies.py --work-dir /absolute/scratch/sapi
 python tools/package.py --work-dir /absolute/scratch/sapi --output-dir /absolute/path/dist
 python tools/smoke_packages.py --work-dir /absolute/scratch/sapi --package-dir /absolute/path/dist
 ```
 
-전용 loopback PostgreSQL 시험 DB가 있을 때 `verify_state.py --postgres "postgresql://...@127.0.0.1/...?... "`를 추가합니다. 이 시험은 해당 시험 DB의 SAPI 테이블을 초기화하므로 운영 DB를 지정하지 않습니다.
+전용 loopback PostgreSQL 시험 DB가 있을 때 `verify_state.py`와 `verify_application.py`에 `--postgres "postgresql://...@127.0.0.1/...?... "`를 추가합니다. 이 시험은 해당 시험 DB의 SAPI 테이블을 초기화하므로 운영 DB를 지정하지 않습니다.
 
 [GitHub CI](https://github.com/GNh0/SAPi/actions/workflows/conformance.yml)는 Windows·Ubuntu·PostgreSQL 작업과 실행별 결과 파일 및 패키지를 보관합니다. 실제 배포의 전원 장애, 복제본 저장소의 내구성, 업무 거래의 멱등성, 일반 브라우저 실행과 모든 웹 프레임워크를 포괄하는 시험은 이 기록과 구분합니다.

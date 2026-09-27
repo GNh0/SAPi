@@ -33,10 +33,16 @@ public final class JavaDriver {
             ReplayStore store = c.path("store").asText().equals("fail") ? (k, exp, now) -> {throw new RuntimeException("storage unavailable");} : new MemoryReplayStore(c.path("capacity").asInt(10000));
             if (state != null) store = state;
             server = new SecureServer(codec, store); contexts.clear(); executions.set(0);
-            server.register("echo", "echo", d -> oneString(d, "message") && d.get("message").textValue().getBytes(StandardCharsets.UTF_8).length <= 4096,
-                (p, d) -> true, (p, d) -> {executions.incrementAndGet(); return d;});
-            server.register("own", "orders", d -> oneString(d, "owner"), (p, d) -> p.subject.equals(d.get("owner").textValue()), (p, d) -> {executions.incrementAndGet(); return d;});
-            server.register("fail", "echo", d -> true, (p, d) -> true, (p, d) -> {throw new RuntimeException("private internal details");});
+            JsonNode echo=Sapi.parse("{\"type\":\"object\",\"properties\":{\"message\":{\"type\":\"string\",\"maxBytes\":4096}}}".getBytes(StandardCharsets.UTF_8));
+            JsonNode own=Sapi.parse("{\"type\":\"object\",\"properties\":{\"owner\":{\"type\":\"string\"}}}".getBytes(StandardCharsets.UTF_8));
+            JsonNode empty=Sapi.parse("{\"type\":\"object\",\"properties\":{}}".getBytes(StandardCharsets.UTF_8));
+            java.util.function.BiFunction<KeyRecord,JsonNode,JsonNode> counted=(p,d)->{executions.incrementAndGet();return d;};
+            server.register("echo","echo",echo,echo,(p,d)->true,counted);
+            server.register("own","orders",own,own,(p,d)->p.subject.equals(d.get("owner").textValue()),counted);
+            server.register("fail","echo",empty,empty,(p,d)->true,(p,d)->{throw new RuntimeException("private internal details");});
+            server.register("limited","echo",echo,echo,(p,d)->true,counted,2,60);
+            server.register("leak","echo",empty,empty,(p,d)->true,(p,d)->Sapi.object().put("secret","private-value"));
+            server.register("admin","admin",empty,empty,(p,d)->true,counted);
             return Sapi.object().put("ready", true);
         }
         if (action.equals("derive")) {
@@ -53,6 +59,20 @@ public final class JavaDriver {
             catch (Exception e) {return Sapi.object().put("error", "transport_error");}
         }
         if (action.equals("stats")) return Sapi.object().put("executions", executions.get());
+        if (action.equals("schema")) {try {Schema schema=new Schema(c.get("schema"));return Sapi.object().put("compiled",true).put("valid",schema.validate(c.get("value")));} catch (Exception e) {return Sapi.object().put("compiled",false);}}
+        if (action.equals("inventory")) {ObjectNode value=Sapi.object();value.set("operations",server.inventory());return value;}
+        if (action.equals("sql")) {try {
+            OwnedSql table=new OwnedSql("accounts","id","owner",List.of("id","owner","display_name","role"),List.of("display_name","notes"));
+            KeyRecord p=codec.principal(c.get("kid").textValue());JsonNode id=c.get("id");SqlPlan plan;
+            switch(c.get("kind").textValue()) {case "select":plan=table.select(p,id);break;case "delete":plan=table.delete(p,id);break;case "update":plan=table.update(p,id,c.get("changes"));break;case "insert":plan=table.insert(p,id,c.get("changes"));break;default:throw new IllegalArgumentException();}
+            ObjectNode result=Sapi.object().put("text",plan.text(c.path("dialect").asText("qmark")));var values=result.putArray("values");
+            for(Object v:plan.values()) {if(v==null)values.addNull();else if(v instanceof String)values.add((String)v);else if(v instanceof Boolean)values.add((Boolean)v);else if(v instanceof Long)values.add((Long)v);else values.add(((Number)v).doubleValue());}
+            return result;
+        }catch(Exception e){return Sapi.object().put("blocked",true);}}
+        if(action.equals("sql_config")){try{
+            List<String> read=new ArrayList<>(),write=new ArrayList<>();c.get("read").forEach(n->read.add(n.textValue()));c.get("write").forEach(n->write.add(n.textValue()));
+            new OwnedSql("accounts",c.get("id_column").textValue(),c.get("owner_column").textValue(),read,write);return Sapi.object().put("compiled",true);
+        }catch(Exception e){return Sapi.object().put("compiled",false);}}
         if (action.equals("parallel")) {
             ExecutorService pool = Executors.newFixedThreadPool(8);
             try {
@@ -61,7 +81,7 @@ public final class JavaDriver {
             } finally {pool.shutdown();}
         }
         if (action.equals("bad_registration")) {
-            try {server.register("bad", "echo", d -> true, null, (p, d) -> d); return Sapi.object().put("rejected", false);}
+            try {JsonNode empty=Sapi.parse("{\"type\":\"object\",\"properties\":{}}".getBytes(StandardCharsets.UTF_8));server.register("bad", "echo", empty,empty, null, (p, d) -> d); return Sapi.object().put("rejected", false);}
             catch (IllegalArgumentException e) {return Sapi.object().put("rejected", true);}
         }
         throw new SapiException();

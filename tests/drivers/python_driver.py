@@ -2,7 +2,7 @@
 import concurrent.futures
 import json
 import sys
-from sapi import Codec, KeyRecord, MemoryReplayStore, SapiError, SecureServer
+from sapi import Codec, KeyRecord, MemoryReplayStore, SapiError, SecureServer, Schema, OwnedSql
 from sapi.serialization import unb64
 from sapi.http import exchange
 from sapi.state import StateClient
@@ -36,12 +36,16 @@ def invoke(command):
             executions += 1
             return data
 
-        server.register("echo", "echo", lambda d: set(d) == {"message"} and isinstance(d["message"], str) and len(d["message"].encode("utf-8")) <= 4096,
-                        lambda p, d: True, counted)
-        server.register("own", "orders", lambda d: set(d) == {"owner"} and isinstance(d["owner"], str),
-                        lambda p, d: d["owner"] == p.subject, counted)
-        server.register("fail", "echo", lambda d: True, lambda p, d: True,
+        echo = {"type":"object","properties":{"message":{"type":"string","maxBytes":4096}}}
+        own = {"type":"object","properties":{"owner":{"type":"string"}}}
+        empty = {"type":"object","properties":{}}
+        server.register("echo", "echo", echo, echo, lambda p, d: True, counted)
+        server.register("own", "orders", own, own, lambda p, d: d["owner"] == p.subject, counted)
+        server.register("fail", "echo", empty, empty, lambda p, d: True,
                         lambda p, d: (_ for _ in ()).throw(RuntimeError("private internal details")))
+        server.register("limited","echo",echo,echo,lambda p,d:True,counted,requests=2,period=60)
+        server.register("leak","echo",empty,empty,lambda p,d:True,lambda p,d:{"secret":"private-value"})
+        server.register("admin","admin",empty,empty,lambda p,d:True,counted)
         return {"ready": True}
     if action == "derive":
         return {"key": codec.derive(command["kid"], command["dir"]).hex()}
@@ -69,9 +73,29 @@ def invoke(command):
         return {"wires": wires}
     if action == "stats":
         return {"executions": executions}
+    if action == "schema":
+        try:
+            schema = Schema(command["schema"])
+            return {"compiled":True,"valid":schema.validate(command["value"])}
+        except (ValueError,TypeError,KeyError): return {"compiled":False}
+    if action == "inventory": return {"operations":server.inventory()}
+    if action == "sql":
+        try:
+            table = OwnedSql("accounts","id","owner",["id","owner","display_name","role"],["display_name","notes"])
+            principal = codec.principal(command["kid"])
+            method = getattr(table, command["kind"]) if command["kind"] in ("select","insert","update","delete") else None
+            plan = method(principal,command["id"],command["changes"]) if command["kind"] in ("insert","update") else method(principal,command["id"])
+            text, values = plan.bind(command.get("dialect","qmark"))
+            return {"text":text,"values":values}
+        except (ValueError,TypeError,KeyError): return {"blocked":True}
+    if action == "sql_config":
+        try:
+            OwnedSql("accounts",command["id_column"],command["owner_column"],command["read"],command["write"])
+            return {"compiled":True}
+        except (ValueError,TypeError,KeyError):return {"compiled":False}
     if action == "bad_registration":
         try:
-            server.register("bad", "echo", lambda d: True, None, lambda p, d: d)
+            server.register("bad", "echo", {"type":"object","properties":{}}, {"type":"object","properties":{}}, None, lambda p, d: d)
         except ValueError:
             return {"rejected": True}
         return {"rejected": False}

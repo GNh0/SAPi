@@ -41,9 +41,15 @@ object Invoke(JsonElement c)
             return count == 1 && d.TryGetProperty(field, out var v) && v.ValueKind == JsonValueKind.String;
         }
         JsonElement Counted(KeyRecord p, JsonElement d) { Interlocked.Increment(ref executions); return d; }
-        server.Register("echo", "echo", d => OneString(d, "message") && Encoding.UTF8.GetByteCount(d.GetProperty("message").GetString()!) <= 4096, (p, d) => true, Counted);
-        server.Register("own", "orders", d => OneString(d, "owner"), (p, d) => p.Subject == d.GetProperty("owner").GetString(), Counted);
-        server.Register("fail", "echo", d => true, (p, d) => true, (p, d) => throw new InvalidOperationException("private internal details"));
+        var echo=Codec.Json(new {type="object",properties=new {message=new {type="string",maxBytes=4096}}});
+        var own=Codec.Json(new {type="object",properties=new {owner=new {type="string"}}});
+        var empty=Codec.Json(new {type="object",properties=new {}});
+        server.Register("echo", "echo", echo,echo, (p, d) => true, Counted);
+        server.Register("own", "orders", own,own, (p, d) => p.Subject == d.GetProperty("owner").GetString(), Counted);
+        server.Register("fail", "echo", empty,empty, (p, d) => true, (p, d) => throw new InvalidOperationException("private internal details"));
+        server.Register("limited","echo",echo,echo,(p,d)=>true,Counted,2,60);
+        server.Register("leak","echo",empty,empty,(p,d)=>true,(p,d)=>Codec.Json(new {secret="private-value"}));
+        server.Register("admin","admin",empty,empty,(p,d)=>true,Counted);
         return new {ready = true};
     }
     if (action == "derive") return new {key = Convert.ToHexString(codec!.Derive(Text("kid"), Text("dir"))).ToLowerInvariant()};
@@ -85,10 +91,22 @@ object Invoke(JsonElement c)
         return new {wires = Task.WhenAll(tasks).GetAwaiter().GetResult()};
     }
     if (action == "stats") return new {executions};
+    if (action == "schema") {try {var schema=new Schema(c.GetProperty("schema"));return new {compiled=true,valid=schema.Validate(c.GetProperty("value"))};} catch {return new {compiled=false};}}
+    if (action == "inventory") return new {operations=server!.Inventory()};
+    if (action == "sql") {try {
+        var table=new OwnedSql("accounts","id","owner",new[]{"id","owner","display_name","role"},new[]{"display_name","notes"});
+        var p=codec!.Principal(Text("kid"));var id=c.GetProperty("id");
+        var plan=Text("kind") switch {"select"=>table.Select(p,id),"delete"=>table.Delete(p,id),"update"=>table.Update(p,id,c.GetProperty("changes")),"insert"=>table.Insert(p,id,c.GetProperty("changes")),_=>throw new ArgumentException()};
+        var bound=plan.Bind(c.TryGetProperty("dialect",out var d)?d.GetString()!:"qmark");return new {text=bound.Text,values=bound.Values};
+    }catch{return new {blocked=true};}}
     if (action == "bad_registration")
     {
-        try {server!.Register("bad", "echo", d => true, null!, (p, d) => d); return new {rejected = false};}
+        try {var empty=Codec.Json(new {type="object",properties=new {}});server!.Register("bad", "echo", empty,empty, null!, (p, d) => d); return new {rejected = false};}
         catch (ArgumentException) {return new {rejected = true};}
+    }
+    if (action == "sql_config")
+    {
+        try {new OwnedSql("accounts",Text("id_column"),Text("owner_column"),c.GetProperty("read").EnumerateArray().Select(n=>n.GetString()!),c.GetProperty("write").EnumerateArray().Select(n=>n.GetString()!));return new {compiled=true};}catch{return new {compiled=false};}
     }
     throw new SapiException();
 }

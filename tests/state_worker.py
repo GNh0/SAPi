@@ -28,6 +28,7 @@ for line in sys.stdin:
             vault._write_anchor = crash
             vault.key(actor, "demo", value["kid"], "res")
         elif value["action"] == "claim": result = vault.claim(actor, value["name"], value["expiry"])
+        elif value["action"] == "admit": result = vault.admit(actor,"demo",value["kid"],value.get("operation","echo"),value.get("requests",60),60)
         elif value["action"] == "reserve":
             vault.key(actor, "demo", value["kid"], "res"); result = {"reserved": True}
         else: raise ValueError()

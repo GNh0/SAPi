@@ -15,6 +15,10 @@
 | `http` | `url`, `wire`, 시험용 CA PEM 경로 `ca` | `{"wire":...}` 또는 `{"error":"transport_error"}`; 인증서·호스트명 검사 유지 |
 | `stats` | 없음 | `{"executions":handler 실행 수}` |
 | `bad_registration` | 없음 | `{"rejected":true}`; policy 없는 등록 거부 확인 |
+| `schema` | schema, value | compiled와 valid, 또는 compiled=false |
+| `inventory` | 없음 | operations 배열(name/scope/requests/period) |
+| `sql` | kid, kind, id, 선택 changes/dialect | text와 values, 또는 blocked=true; 고정 accounts 열 목록 사용 |
+| `sql_config` | id_column, owner_column, read, write | compiled; SQL 열의 casefold 충돌·불변 열 검사 |
 
 프로토콜 실패는 `{"error":SAPI 오류 코드}`다. 기본 slot은 `default`, 기본 service는 `demo`, 기본 캐시 capacity는 10,000이다. `store:"fail"`은 예약 시 항상 예외를 내는 저장소다.
 
@@ -23,6 +27,11 @@ init 시 등록할 시험 업무:
 - `echo`, scope `echo`: data는 UTF-8 4,096바이트 이하의 문자열 `message` 한 항목만 허용; policy는 true; handler는 카운터를 올리고 data를 반환한다.
 - `own`, scope `orders`: 문자열 `owner` 한 항목; policy는 서버 key record의 subject와 owner가 같을 때만 true; handler는 카운터를 올리고 data를 반환한다.
 - `fail`, scope `echo`: validator/policy는 true; handler는 내부 예외를 던지며 카운터는 올리지 않는다. 예외 내용이 응답에 나오면 실패다.
+- `limited`, scope `echo`: echo 스키마, 2회/60초 제한.
+- `admin`, scope `admin`: 빈 입력·출력 object, 카운터 증가.
+- `leak`, scope `echo`: 빈 입력, 선언되지 않은 secret 출력; 출력 검사에서 거절.
+
+모든 작업은 닫힌 입력·출력 스키마와 policy를 등록합니다. `verify_security.py`는 스키마 계약·실제 SQLite SQL·N×N 처리·영속 주체 제한을 검사하고 `verify_application.py`는 같은 registry의 클라이언트로 실제 선언형 서비스를 호출합니다.
 
 실제 웹 어댑터 시험은 선택 기능이다. registry의 `features:["http_server"]`를 제공하는 드라이버는 `http_server_start` → `{"url":루프백 /sapi URL}`, `http_server_stop` → `{"stopped":true}`를 지원한다. 전달되는 요청은 실제 프레임워크의 엔드포인트가 처리한다.
 

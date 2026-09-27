@@ -211,6 +211,20 @@ def main():
             finally:
                 for worker in workers: worker.close()
         add("process persistence: eight workers, one replay winner, shared usage budget", concurrency)
+        def concurrent_admission():
+            vault, _ = fresh();kid=vault.issue(admin,"demo","alice",["echo"])["kid"]
+            vault.quota(admin,"demo","alice",3,60)
+            folder=area/"admission";folder.mkdir();worker_config=dict(config,database=vault.db.target,anchor=str(vault.anchor_path));write_json(folder/"config.json",worker_config)
+            workers=[Driver("quota worker",[sys.executable,str(ROOT/"tests/state_worker.py"),str(folder/"config.json")],env) for _ in range(8)]
+            try:
+                with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
+                    results=list(pool.map(lambda w:w.call(action="admit",kid=kid),workers))
+                assert sum(r.get("admitted") is True for r in results)==3,results
+                rotated=vault.rotate(admin,"demo",kid)["kid"]
+                assert workers[0].call(action="admit",kid=rotated,operation="other")=={"admitted":False}
+            finally:
+                for worker in workers:worker.close()
+        add("process admission: eight workers, three winners, rotation cannot reset subject quota",concurrent_admission)
         def capacity():
             now = [1700000000]; vault, _ = fresh(clock=lambda: now[0], capacity=1)
             kid = vault.issue(admin, "demo", "alice", ["echo"])["kid"]; name = "demo|" + kid + "|"
@@ -349,7 +363,7 @@ def main():
             def postgres():
                 database = Database(args.postgres, allow_local_postgres=True)
                 with database.transaction() as tx:
-                    for table in ("sapi_replay", "sapi_keys", "sapi_roots", "sapi_audit", "sapi_meta", "sapi_tree"): tx.execute("DELETE FROM " + table)
+                    for table in ("sapi_replay", "sapi_rates", "sapi_quotas", "sapi_keys", "sapi_roots", "sapi_audit", "sapi_meta", "sapi_tree"): tx.execute("DELETE FROM " + table)
                 anchor = area / "anchors/postgres.json"
                 a = Authority(database, keks, "root-1", audit_key, anchor_path=anchor)
                 b = Authority(Database(args.postgres, allow_local_postgres=True), keks, "root-1", audit_key, anchor_path=anchor)
@@ -374,6 +388,13 @@ def main():
                         result = list(pool.map(lambda worker: worker.call(action="reserve", kid=kid), workers))
                         assert all(r == {"reserved": True} for r in result), result
                     expect("key_rotation_required", lambda: a.key(service, "demo", kid, "res"))
+                    a.quota(admin,"demo","alice",3,60)
+                    with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
+                        admitted=list(pool.map(lambda w:w.call(action="admit",kid=kid),workers))
+                    assert sum(r.get("admitted") is True for r in admitted)==3,admitted
+                    rotated=a.rotate(admin,"demo",kid)["kid"]
+                    assert workers[0].call(action="admit",kid=rotated,operation="other")=={"admitted":False}
+                    a.quota(admin,"demo","alice",1000,60)
                 finally:
                     for worker in workers: worker.close()
                 with remote(a) as first, remote(b) as second:

@@ -8,6 +8,7 @@ from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.x509.oid import NameOID, ExtendedKeyUsageOID
 from .files import private_directory, write_private
+from sapi.constants import NAME
 
 
 def fingerprint(certificate):
@@ -27,7 +28,8 @@ def create_ca(directory):
     _save(directory, "ca", key, certificate)
 
 
-def enroll(directory, name, *, host=None):
+def enroll(directory, name, *, host=None, output_directory=None):
+    if not isinstance(name,str) or not NAME.fullmatch(name):raise ValueError("valid certificate name required")
     directory = Path(directory)
     ca = x509.load_pem_x509_certificate((directory / "ca.pem").read_bytes())
     ca_key = serialization.load_pem_private_key((directory / "ca.key").read_bytes(), password=None)
@@ -37,5 +39,5 @@ def enroll(directory, name, *, host=None):
         try: entry = x509.IPAddress(ipaddress.ip_address(host))
         except ValueError: entry = x509.DNSName(host)
         builder = builder.add_extension(x509.SubjectAlternativeName([entry]), critical=False)
-    certificate = builder.sign(ca_key, hashes.SHA256()); _save(directory, name, key, certificate)
+    certificate = builder.sign(ca_key, hashes.SHA256()); _save(private_directory(output_directory) if output_directory else directory, name, key, certificate)
     return fingerprint(certificate)

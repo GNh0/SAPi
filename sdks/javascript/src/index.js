@@ -5,3 +5,5 @@ export {MemoryReplayStore} from './replay.js';
 export {SecureServer} from './server.js';
 export {StaticKeyProvider} from './keys.js';
 export {b64, unb64, digest} from './serialization.js';
+export {Schema} from './schema.js';
+export {OwnedSql,SqlPlan} from './sql.js';

@@ -16,9 +16,26 @@
 
 독립 검토의 원본 시점·소스 해시·직접 재현/보고서 읽기 구분은 [원본 메모](../tests/results/security-review-agent.md)에 있습니다. 후속 소스 검토에서는 Windows protected DACL(현재 사용자·SYSTEM)과 PostgreSQL 연결 조건을 확인했습니다.
 
-구현자가 최종 소스로 실행한 회귀 결과는 [292개 메시지 시험](../tests/results/verification-windows.json), [49개 상태 시험](../tests/results/state-verification-windows.json), [5종 패키지 소비](../tests/results/package-smoke-windows.json)에 있습니다. 원본 메모의 이전 소스/44개 상태 결과와 최종 실행 증거를 구분합니다.
+구현자가 실행한 최신 회귀와 패키지 소비는 [검증 기록](VALIDATION.md)에 있습니다. 원본 메모의 이전 소스/44개 상태 결과와 최신 실행 증거를 구분합니다.
 
 [동일 구현의 GitHub CI](https://github.com/GNh0/SAPi/actions/runs/36303335452)에서도 Windows·Ubuntu 메시지/상태/패키지 소비와 [실제 PostgreSQL 상태 시험 50개](../tests/results/state-verification-postgres.json)가 통과했습니다. CI 실행과 소스 해시 대조는 [검증 기록](VALIDATION.md)에 있습니다.
+
+## alpha.3 애플리케이션 처리 검토
+
+추가 기능은 구현 담당과 분리된 에이전트가 SDK·서비스·저장소·패키징/CI 소스를 읽기 전용으로 검토했습니다. 최신 수정과 회귀 코드를 정적으로 재확인했으며 읽은 범위에서 확정한 미해결 결함은 없습니다. [원본 기록](../tests/results/application-review-agent.md)은 읽은 파일·기준 HEAD와 실행하지 않은 범위를 명시합니다.
+
+| 발견 | 수정·실행 검증 |
+| --- | --- |
+| JS identifier/uuid의 마지막 LF 수락, null 설정 기본값 | 완전 문자열 끝·필드 존재 검사, 네 SDK 동일 벡터 |
+| 출력 예산·스키마·다음 버전 실패 뒤 DB 커밋 | 트랜잭션 안에서 결과 검사, 실제 API 요청 후 롤백 확인 |
+| .NET command 공급자 예외 시 자원 누락 | 실패 시 Dispose, 소스 경로 대조 |
+| quota 기간 연장 뒤 이전 만료 시점에 사용량 초기화 | live global row의 expiry도 원자적으로 연장, 가상 시간 회귀 |
+| Python 패키지 소비의 tuple/list 비교 오류 | 반환 tuple과 비교, 격리 소비 실행 |
+| TCP 연결 뒤 TLS 협상에 전체 예산 미적용 | SSL 객체를 먼저 보관하고 남은 timeout으로 handshake, 지연 연결·협상 회귀 |
+| SQL 열의 대소문자 별칭으로 owner/id 변경 허용 | 네 SDK ASCII casefold 불변 열·중복 검사, 공통 선언 벡터 |
+| Content-Length보다 짧은 외부 JSON 응답 수락 | 실제 본문 길이 비교, 유효 JSON prefix를 보내고 닫는 회귀 |
+
+처음 세 항목은 앞선 중간 소스 검토와 수정에서 다뤘고, 원본 추가 검토 기록은 뒤의 다섯 항목과 최종 소스 범위를 포함합니다. 신규 검토자는 실행·외부 연결·재현을 하지 않았으며 실행 결과는 주 담당의 검증 보고서와 CI로 구분합니다. 기관의 독립 보안 인증으로 표현하지 않습니다.
 
 ## 의존성
 

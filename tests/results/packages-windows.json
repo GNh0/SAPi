@@ -1,17 +1,21 @@
 {
-  "utc": "2026-09-27T07:28:17.683420+00:00",
-  "verification_sha256": "1d12a1c9749157f1ef56f96126e2e8acc4232ae8a4fbf4c96cc0ba50d667185f",
+  "utc": "2026-09-27T09:49:46.601143+00:00",
+  "verification_sha256": "75d46a8b39b9838123423853fcc6a655d71dd7fe122dc78888189250f70b4adc",
   "packages_sha256": {
-    "sapi-protocol-0.1.0-alpha.2.jar": "2c073c4942a0cbe2f99f7c73a8cc9c47c2297e05ab6449501a29be2ee7d1611f",
-    "sapi-protocol-0.1.0-alpha.2.pom": "ee1aa5034b2a420e466598e639e059148af23dfe79f87447555b84826af772f5",
-    "sapi-protocol-0.1.0-alpha.2.tgz": "bcbd832fbb87e60cf3e71e22bd7fe3f6f831eb28ec86c67d9210f6ef223d0e67",
-    "SApi.AspNetCore.0.1.0-alpha.2.nupkg": "6f1ff5fa54796ffc4e37fc427d0195f08f39de35085def3e63ec091eac6449a7",
-    "SApi.Protocol.0.1.0-alpha.2.nupkg": "df21a1811aa9d801bf9aadcdc5dba2788824b8da64c9bd5f01f219151c4318ae",
-    "sapi_protocol-0.1.0a2-py3-none-any.whl": "91cd0d6a29f9018701eca9111d0f42cbeb75e684a7f330a533e3dec9b93504ad",
-    "sapi_protocol-0.1.0a2.tar.gz": "92ddf580fb46c971e65c7999557026786eb3646226561a7090938e4f050e5575",
-    "sapi_state-0.1.0a2-py3-none-any.whl": "cb38a7c111a9993e55451d7a1c4713477fc1909f14170f4e394dfe9c5e75d893",
-    "sapi_state-0.1.0a2.tar.gz": "6a2d1bf6be811312a3b9617b8b0aa55e5b683ef181b81104f0e23f67d77e0015"
+    "sapi-protocol-0.1.0-alpha.3.jar": "61634ed41e67900f916a1c3e3acb6c6aef63e59ec9b3b9c834389cd29c50583a",
+    "sapi-protocol-0.1.0-alpha.3.pom": "78d36eb180b40eb8c44e90f7f131a7ec377294f85ecd13b3a031dd825102f002",
+    "sapi-protocol-0.1.0-alpha.3.tgz": "b486f05ec2e9083ebe127aafc9c8d39666545856971473df05da7e5580aa3a99",
+    "SApi.AspNetCore.0.1.0-alpha.3.nupkg": "2736f184369a6cec969a76b38dec5297e2b185dc7d29ca1c8ef433fdc8e23cef",
+    "SApi.Protocol.0.1.0-alpha.3.nupkg": "c6759aa08c575d54de340df3b58f4eedebbc5221b8d2d5303cea834226e06e6a",
+    "sapi_application-0.1.0a3-py3-none-any.whl": "60e41cc8b8b98135e5ea6c55d228a8a649edb54666622f3a6996794ac12873a5",
+    "sapi_application-0.1.0a3.tar.gz": "474f8c6e0ffd9b58b4b47c56bcd68bca4ad75a347596fa0acf10a20619891532",
+    "sapi_protocol-0.1.0a3-py3-none-any.whl": "4ffd1fda4e358e0d72b404417d677ff37808b040fc86d820827f5452d8e73698",
+    "sapi_protocol-0.1.0a3.tar.gz": "465aad0eaebe86b518c359eedc8e5ab5764ef5274b9c84e6de5f2104a8a5d437",
+    "sapi_state-0.1.0a3-py3-none-any.whl": "5183485457b5bc2bec634cc9bff7704f6256dc78a7e6716ff16ee7a52b8518e6",
+    "sapi_state-0.1.0a3.tar.gz": "5443448792dbcd5092bb63368cf5cafbc18cc8dd49fd4eb468bf9312aa5ae1e8"
   },
-  "state_verification_sha256": "ffb69f66ac2420e1a8fe6c52f3b57cad608dd7114af78e93c28ec40804d916cb",
+  "state_verification_sha256": "c3b759952511f2bc7c9f67289c2e306e4569ff31a98f36773af9d6bb6856efee",
+  "security_verification_sha256": "60ad0feed6e90e945ca337365333a2f3f67b78a1a36d3193b7469a4206483983",
+  "application_verification_sha256": "9e2182c0ac9a9b89a427152759c2af5633ed416fbacdc7702077a261246c75ad",
   "checks": "build/pack success and required archive members; package registry publication not performed"
 }

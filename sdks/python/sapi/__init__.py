@@ -5,5 +5,7 @@ from .models import KeyRecord, Principal, RequestContext
 from .keys import KeyProvider, StaticKeyProvider
 from .replay import MemoryReplayStore, ReplayStore
 from .server import SecureServer
+from .schema import Schema
+from .sql import OwnedSql, SqlPlan
 
-__all__ = ["Codec", "KeyRecord", "KeyProvider", "StaticKeyProvider", "Principal", "MemoryReplayStore", "ReplayStore", "RequestContext", "SapiError", "SecureServer"]
+__all__ = ["Codec", "KeyRecord", "KeyProvider", "StaticKeyProvider", "Principal", "MemoryReplayStore", "ReplayStore", "RequestContext", "SapiError", "SecureServer", "Schema", "OwnedSql", "SqlPlan"]

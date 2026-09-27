@@ -73,6 +73,7 @@ public sealed class StateClient : IKeyProvider, IReplayStore, IDisposable
     public KeyRecord Get(string service, string kid) => Record(Call("key", new() {["service"] = service, ["kid"] = kid}));
     public KeyRecord Reserve(string service, string kid, string direction) => Record(Call("reserve", new() {["service"] = service, ["kid"] = kid, ["direction"] = direction}));
     public bool Claim(string name, long expiry, long now) => Call("claim", new() {["name"] = name, ["expiry"] = expiry}).GetProperty("claimed").GetBoolean();
+    public bool Admit(string service, string kid, string subject, string operation, long now, int requests = 60, int period = 60) => Call("admit", new() {["service"]=service,["kid"]=kid,["operation"]=operation,["requests"]=requests,["period"]=period}).GetProperty("admitted").GetBoolean();
     public RequestContext Request(Codec codec, string subject, string operation, JsonElement data)
     {
         for (var n = 0; ; n++)

@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=84"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sapi-application"
+version = "0.1.0a3"
+description = "Declarative SAPi application gateway with owned SQL and restricted egress"
+requires-python = ">=3.10"
+dependencies = ["sapi-protocol==0.1.0a3", "sapi-state==0.1.0a3"]
+
+[project.optional-dependencies]
+postgres = ["psycopg[binary]>=3.3.6,<4"]
+
+[project.scripts]
+sapi-application = "sapi_application.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["sapi_application*"]

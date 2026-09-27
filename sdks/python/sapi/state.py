@@ -37,10 +37,12 @@ class StateClient:
     def claim(self, name, expiry, now):
         return self.call("claim", name=name, expiry=int(expiry))["claimed"] is True
 
+    def admit(self, service, kid, subject, operation, now, requests=60, period=60):
+        return self.call("admit", service=service, kid=kid, operation=operation, requests=requests, period=period)["admitted"] is True
+
     def request(self, codec, subject, operation, data):
         for attempt in range(3):
             kid = self.call("active", service=codec.service, subject=subject)["kid"]
             try: return codec.request(kid, operation, data)
             except SapiError as exc:
                 if exc.code not in ("key_retired", "key_rotation_required") or attempt == 2: raise
-
