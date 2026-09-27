@@ -1,0 +1,18 @@
+{
+  "python": {
+    "command": ["{python}", "{root}/tests/drivers/python_driver.py"]
+  },
+  "javascript": {
+    "command": ["node", "{root}/tests/drivers/javascript_driver.mjs"]
+  },
+  "dotnet": {
+    "features": ["http_server"],
+    "build": [["dotnet", "build", "{root}/tests/drivers/dotnet/Driver.csproj", "--artifacts-path", "{work}/dotnet", "--nologo", "--verbosity", "quiet", "-p:NuGetAudit=false"]],
+    "artifact": "dotnet/bin/**/SApi.Driver.dll",
+    "command": ["dotnet", "{artifact}"]
+  },
+  "java": {
+    "build": [["javac", "--release", "11", "-encoding", "UTF-8", "-cp", "{java_classpath}", "-d", "{work}/java", "{java_sources}", "{root}/tests/drivers/JavaDriver.java"]],
+    "command": ["java", "-cp", "{work}/java{pathsep}{java_classpath}", "JavaDriver"]
+  }
+}

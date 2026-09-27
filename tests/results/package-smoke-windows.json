@@ -1,0 +1,10 @@
+{
+  "utc": "2026-09-27T06:12:38.703524+00:00",
+  "passed": [
+    "python wheel import/roundtrip",
+    "npm package exports/roundtrip",
+    "NuGet dependency restore/roundtrip/adapter assembly",
+    "Java JAR consumer compile/roundtrip"
+  ],
+  "packages_report_sha256": "c6e291bdd9e053ec1028f0df97af7c1cf7403d2abf3707ff0e27dcb1c7364d3a"
+}

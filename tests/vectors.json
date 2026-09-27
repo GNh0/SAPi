@@ -1,0 +1,60 @@
+{
+  "warning": "PUBLIC TEST KEYS AND FIXED IVS; NEVER USE IN PRODUCTION",
+  "now": 1700000005,
+  "keys": {
+    "alice-k1": {
+      "key": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8",
+      "subject": "alice",
+      "scopes": [
+        "echo",
+        "orders"
+      ]
+    },
+    "bob-k1": {
+      "key": "ICEiIyQlJicoKSorLC0uLzAxMjM0NTY3ODk6Ozw9Pj8",
+      "subject": "bob",
+      "scopes": [
+        "echo"
+      ]
+    }
+  },
+  "derived": {
+    "alice-k1": {
+      "req": "1ab0c7349a75b5f4ef61ad0ad5f52ed17e4a61b88943ccf016fbd238ac38a550",
+      "res": "107378c76133b5c6bdcb0ebba7e60d7387f6229afeecb9f33158dc7805e36c92"
+    },
+    "bob-k1": {
+      "req": "a115f065ef21418dba671c78426e658bbbd9c34a479f92912c84b658c7610610",
+      "res": "927ca389fc25af9b2d8ad51aa1a48c9de7c0fbbec56a593b9c90c3d899d4db30"
+    }
+  },
+  "vectors": [
+    {
+      "dir": "req",
+      "wire": "eyJhbGciOiJkaXIiLCJlbmMiOiJBMjU2R0NNIiwidHlwIjoic2FwaStqd2UiLCJraWQiOiJhbGljZS1rMSIsInNhcGkiOiIwLjEiLCJkaXIiOiJyZXEiLCJzdmMiOiJkZW1vIiwiY3JpdCI6WyJzYXBpIiwiZGlyIiwic3ZjIl19..AAECAwQFBgcICQoL.4F_L7mTXoPJMgLddLvZTuxWMq4cGJ_hsFmZUg1rmb5VXM8vU5z6tAcVNoiHROKUh0evpdyxN0dFzXij6Zw2B0ICU6MMkD8Oytv3ffyPB1TT901xV_VbzsloXc8S4dTiDI5lx5wxFSeHAomDUchDpMei6BUMFwtli.PppMDFxqIJ_O6Cow2guK1A",
+      "payload": {
+        "id": "00112233445566778899aabbccddeeff",
+        "iat": 1700000000,
+        "exp": 1700000060,
+        "op": "echo",
+        "data": {
+          "message": "안녕 🌐"
+        }
+      }
+    },
+    {
+      "dir": "res",
+      "wire": "eyJhbGciOiJkaXIiLCJlbmMiOiJBMjU2R0NNIiwidHlwIjoic2FwaStqd2UiLCJraWQiOiJhbGljZS1rMSIsInNhcGkiOiIwLjEiLCJkaXIiOiJyZXMiLCJzdmMiOiJkZW1vIiwiY3JpdCI6WyJzYXBpIiwiZGlyIiwic3ZjIl19..AAECAwQFBgcICQoL.jD3EnrNg50L0CkZV3iOafcbGyoHQRhs2IsvwgmIM43LnXsLmP5Co0iJmmrtwQI3ZScDd0FgCPnuILUi3rPmi5F-OFc5wwar3Ht_05cCNODplWPCoVv-m2R06z4mbmJ4G1M8956haWpgwmLZTdfYXvg_azbiuzFuejt-OqgPSdew1DgvdMUMGWZnqIRuFs7qrfrbV2wZe2b9H4FM9e2TlHt3nA8YF_cnEGcE.EAYixLDN-2_SoUQRIVroGA",
+      "payload": {
+        "id": "00112233445566778899aabbccddeeff",
+        "iat": 1700000001,
+        "exp": 1700000061,
+        "req": "SS787prnNbWOW6N-XkUKYvz9wQOFEOZ75iUfY5sRM24",
+        "ok": true,
+        "data": {
+          "message": "안녕 🌐"
+        }
+      }
+    }
+  ]
+}

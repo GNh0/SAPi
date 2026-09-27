@@ -1,0 +1,17 @@
+**/bin/
+**/obj/
+**/target/
+**/__pycache__/
+*.pyc
+*.nupkg
+*.snupkg
+*.tgz
+.venv/
+.env
+*.key
+*.pem
+*.p12
+*.pfx
+dist/
+**/*.egg-info/
+**/build/

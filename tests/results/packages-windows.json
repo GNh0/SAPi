@@ -1,0 +1,14 @@
+{
+  "utc": "2026-09-27T06:12:30.765745+00:00",
+  "verification_sha256": "7386f2de7d3bb6cc55e5a6132bc8a5c9d53ede89d8fcfa5485449f82d7e2702c",
+  "packages_sha256": {
+    "sapi-protocol-0.1.0-alpha.1.jar": "16606f3b989bef666c4a412fa8454c57b4dc454ab87972d670f33b6f44b39dad",
+    "sapi-protocol-0.1.0-alpha.1.pom": "f7cb735722592c1b1ae7691fa4e0e0f2bd19cda2f08d6088d7ce57d0e4e26b02",
+    "sapi-protocol-0.1.0-alpha.1.tgz": "46ef2d60bea6080e771cc80ca7496cd37d871adee95b53993eca21b709fe63eb",
+    "SApi.AspNetCore.0.1.0-alpha.1.nupkg": "0b871c461af84dee41eb2718b71e041b54baa3a57d94267dd389e0f8bb0ac1f2",
+    "SApi.Protocol.0.1.0-alpha.1.nupkg": "11fd7c9e141005437a4092cb04f6438cf70b87a1d161eda834ef9f4f86c98124",
+    "sapi_protocol-0.1.0a1-py3-none-any.whl": "e97fc0101274ded0d6b6e278097d9eaa06818d70226ed4cc0040468ebc2423db",
+    "sapi_protocol-0.1.0a1.tar.gz": "beec2f25a63bd1cff25e803dc2c726efbc7520809b58270b8131c0113e408cec"
+  },
+  "checks": "build/pack success and required archive members; package registry publication not performed"
+}

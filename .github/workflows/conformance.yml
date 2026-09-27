@@ -1,0 +1,47 @@
+name: Protocol conformance
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  verify:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '11'
+      - name: Prepare isolated dependencies
+        run: python tools/bootstrap.py --work-dir "${{ runner.temp }}/sapi-validation"
+      - name: Verify every registered implementation pair
+        run: python tools/verify.py --work-dir "${{ runner.temp }}/sapi-validation"
+      - name: Build local packages
+        run: python tools/package.py --work-dir "${{ runner.temp }}/sapi-validation" --output-dir "${{ runner.temp }}/sapi-packages"
+      - name: Consume packaged SDKs in isolated projects
+        run: python tools/smoke_packages.py --work-dir "${{ runner.temp }}/sapi-validation" --package-dir "${{ runner.temp }}/sapi-packages"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: verification-${{ matrix.os }}
+          path: |
+            ${{ runner.temp }}/sapi-validation/verification.json
+            ${{ runner.temp }}/sapi-validation/packages.json
+            ${{ runner.temp }}/sapi-validation/package-smoke.json
+            ${{ runner.temp }}/sapi-validation/*-build.log
+            ${{ runner.temp }}/sapi-validation/package.log
+            ${{ runner.temp }}/sapi-packages/*

@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <Description>Experimental transport-independent SAPI/0.1 message security.</Description>
+    <PackageReadmeFile>PACKAGE.md</PackageReadmeFile>
+  </PropertyGroup>
+  <ItemGroup><None Include="PACKAGE.md" Pack="true" PackagePath="/" /></ItemGroup>
+</Project>
