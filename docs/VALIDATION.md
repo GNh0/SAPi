@@ -17,6 +17,18 @@
 
 검사는 기존 보안 규칙을 그대로 사용해 등록된 6개 구현의 36개 요청·응답 조합, HTTP·HTTPS, .NET 6/8 Kestrel, 실제 mTLS 상태 서비스, 재전송·키 수명·입력·권한·SQL·업무 거래를 확인합니다. 부분 HTTP 본문이 중단되는 경우에도 호출자의 전체 제한 시간 안에서 종료하는 회귀를 포함합니다. Node 16에 포함된 npm 7.10.0으로 패키지 생성과 설치도 확인했습니다.
 
+구현·패키징 커밋 [`43856c0`](https://github.com/GNh0/SAPi/commit/43856c0d3b9e13aa3ab45731cc484288a0dd4774)의 [GitHub CI](https://github.com/GNh0/SAPi/actions/runs/36330026223)는 다섯 작업 모두 통과했습니다. 내려받은 원본 보고서의 SDK·서비스 소스 87개, 네 검사 보고서에 대한 패키지 manifest 참조, 실제 패키지 SHA-256과 소비 보고서 참조를 모두 대조했습니다.
+
+| CI 작업 | 메시지 | 영속 상태 | 처리 보안 | 애플리케이션 | 패키지 소비 |
+| --- | --- | --- | --- | --- | --- |
+| Windows | 296/296 | 50/50 | 31/31 | 14/14 | 9종 |
+| Ubuntu | 296/296 | 50/50 | 31/31 | 14/14 | 8종 |
+| 구버전 Windows | 486/486 | 78/78 | 57/57 | 18/18 | 9종 |
+| 구버전 Ubuntu | 390/390 | 63/63 | 43/43 | 16/16 | 8종 |
+| PostgreSQL | — | 51/51 | — | 15/15 | — |
+
+패키징 작업마다 12개를 생성했습니다. 구버전 Windows는 Python 3.9.13, 구버전 Ubuntu는 3.9.25를 사용하며 두 작업 모두 Node 16.0.0·Java 8u504·.NET 6.0.36/8.0.31을 실행했습니다. Linux에는 Windows 전용 Framework 구현을 등록하지 않으므로 구현·검사 수가 다릅니다. Windows의 추가 패키지 소비는 클래식 ASP.NET/Framework입니다. 의존성 조회는 CI 일반 Windows 30개·Ubuntu 29개, 구버전 Windows 32개·Ubuntu 31개이며 해당 시점 공지 발견은 모두 0건입니다.
+
 - [구버전 런타임과 검사 집계](../tests/results/alpha4/compatibility.json)
 - [메시지 결과](../tests/results/alpha4/verification.json)
 - [영속 상태 결과](../tests/results/alpha4/state-verification.json)
@@ -26,6 +38,12 @@
 - [별도 프로젝트 패키지 소비](../tests/results/alpha4/package-smoke.json)
 - [의존성 공지 조회](../tests/results/alpha4/dependency-audit.json)
 - [분리된 에이전트 소스 검토](../tests/results/alpha4/compatibility-review-agent.md)
+- [CI 집계와 원본 보고서 해시](../tests/results/alpha4/ci-summary.json)
+- [CI 구버전 Windows](../tests/results/alpha4/ci-legacy-windows/compatibility.json)
+- [CI 구버전 Ubuntu](../tests/results/alpha4/ci-legacy-ubuntu/compatibility.json)
+- [CI 일반 Windows](../tests/results/alpha4/ci-windows/verification.json)
+- [CI 일반 Ubuntu](../tests/results/alpha4/ci-ubuntu/verification.json)
+- [CI PostgreSQL](../tests/results/alpha4/ci-postgres/state-verification.json)
 
 구버전 재현은 현대 Python 빌드/서비스 환경과 SDK 런타임을 구분합니다. `SAPI_PYTHON`, `SAPI_NODE`, `SAPI_JAVA`, `SAPI_JAVAC`로 SDK 실행 파일을 지정하고, 해당 Python에서 설치한 의존성 경로를 `SAPI_SDK_DEPS`로 지정한 뒤 실행합니다.
 

@@ -1,0 +1,300 @@
+{
+  "utc": "2026-09-27T15:40:40.484192+00:00",
+  "run_id": 36330026223,
+  "head_sha": "43856c0d3b9e13aa3ab45731cc484288a0dd4774",
+  "url": "https://github.com/GNh0/SAPi/actions/runs/36330026223",
+  "source_files": 87,
+  "jobs": [
+    {
+      "name": "postgres",
+      "databaseId": 108650059659,
+      "conclusion": "success",
+      "url": "https://github.com/GNh0/SAPi/actions/runs/36330026223/job/108650059659"
+    },
+    {
+      "name": "compatibility (windows-latest)",
+      "databaseId": 108650059807,
+      "conclusion": "success",
+      "url": "https://github.com/GNh0/SAPi/actions/runs/36330026223/job/108650059807"
+    },
+    {
+      "name": "verify (windows-latest)",
+      "databaseId": 108650059897,
+      "conclusion": "success",
+      "url": "https://github.com/GNh0/SAPi/actions/runs/36330026223/job/108650059897"
+    },
+    {
+      "name": "compatibility (ubuntu-latest)",
+      "databaseId": 108650059901,
+      "conclusion": "success",
+      "url": "https://github.com/GNh0/SAPi/actions/runs/36330026223/job/108650059901"
+    },
+    {
+      "name": "verify (ubuntu-latest)",
+      "databaseId": 108650059953,
+      "conclusion": "success",
+      "url": "https://github.com/GNh0/SAPi/actions/runs/36330026223/job/108650059953"
+    }
+  ],
+  "artifacts": {
+    "ci-windows": {
+      "suites": {
+        "verification": {
+          "passed": 296,
+          "total": 296,
+          "failures": []
+        },
+        "state-verification": {
+          "passed": 50,
+          "total": 50,
+          "failures": []
+        },
+        "security-verification": {
+          "passed": 31,
+          "total": 31,
+          "failures": []
+        },
+        "application-verification": {
+          "passed": 14,
+          "total": 14,
+          "failures": []
+        }
+      },
+      "report_sha256": {
+        "verification": "4f1de16402f0d271225fb016df037d9c18590dd10f03d5da0bd52086e7cdbd54",
+        "state-verification": "042b1f2789f6edf361828e9f1cc950aa36a1b88333c53bf3efbb44057cf367da",
+        "security-verification": "bc5877da1da7bf6006b8fd817d3e6e5fa0f3fa6b219b5ee513c04359c24ff5e1",
+        "application-verification": "5b1325da7f541f20aebb10947f06cda2a11f8249465f15ba5be322431115cde6",
+        "packages": "03b86c6cdc2a756bbb70b0222e6933ed27f3cdf4201479b1f780438692b15ee6",
+        "package-smoke": "0c727ca36f9c630f707237a6b31c70cb9675ae3e1a1962a48bef77bf3f6caa63",
+        "dependency-audit": "9cc6932716bf802ef32a9a0086015565f654afb5938cb7ddb0eafef88537291d"
+      },
+      "driver_runtimes": {
+        "python": {
+          "runtime": "Python",
+          "version": "3.12.10"
+        },
+        "javascript": {
+          "runtime": "Node.js",
+          "version": "24.21.0"
+        },
+        "dotnet": {
+          "runtime": "System.Private.CoreLib",
+          "version": "8.0.31",
+          "library": "0.1.0.0"
+        },
+        "java": {
+          "runtime": "Java",
+          "version": "11.0.32.1"
+        }
+      },
+      "packages": 12,
+      "consumers": 9,
+      "dependency_queries": 30,
+      "dependency_findings": 0
+    },
+    "ci-ubuntu": {
+      "suites": {
+        "verification": {
+          "passed": 296,
+          "total": 296,
+          "failures": []
+        },
+        "state-verification": {
+          "passed": 50,
+          "total": 50,
+          "failures": []
+        },
+        "security-verification": {
+          "passed": 31,
+          "total": 31,
+          "failures": []
+        },
+        "application-verification": {
+          "passed": 14,
+          "total": 14,
+          "failures": []
+        }
+      },
+      "report_sha256": {
+        "verification": "46dc117ac16fa564c1232389bcd073cc8a3f1b8e803270fc4961b72cf1f35ab9",
+        "state-verification": "aff986c3440c458ec918e0ff678e8c8a86a0d4f54cd37c639d552e41f02428d0",
+        "security-verification": "7322693daeae3d44ecaede308c0c1d0890688771ab0eccdbd601202cade402c6",
+        "application-verification": "bcdd353b02c29c566803aa7f028c591cd1ce7f31fa10bf06fb998befe0f628ba",
+        "packages": "325618775d032927ca8d08b8ac9146aee3a581345c3f60b8ed5867b12c580840",
+        "package-smoke": "7a2158174de32b9e42311d9f542880c5b60a4371bcd202e591b79dc823121929",
+        "dependency-audit": "e1b6decc729a41846132ed33c3a2e5775c96c66e4fc239b77806f834050814f4"
+      },
+      "driver_runtimes": {
+        "python": {
+          "runtime": "Python",
+          "version": "3.12.14"
+        },
+        "javascript": {
+          "runtime": "Node.js",
+          "version": "24.21.0"
+        },
+        "dotnet": {
+          "runtime": "System.Private.CoreLib",
+          "version": "8.0.31",
+          "library": "0.1.0.0"
+        },
+        "java": {
+          "runtime": "Java",
+          "version": "11.0.32.1"
+        }
+      },
+      "packages": 12,
+      "consumers": 8,
+      "dependency_queries": 29,
+      "dependency_findings": 0
+    },
+    "ci-postgres": {
+      "suites": {
+        "state-verification": {
+          "passed": 51,
+          "total": 51,
+          "failures": []
+        },
+        "application-verification": {
+          "passed": 15,
+          "total": 15,
+          "failures": []
+        }
+      },
+      "report_sha256": {
+        "state-verification": "9ee0fc7b8b50838ab621af4bda6aac52e34803163e3a2e37ed921d342e69b404",
+        "application-verification": "bb8230aec2381132188e7a7fae437474870c1c07bd13ad454f83f25f0960623e"
+      }
+    },
+    "ci-legacy-windows": {
+      "suites": {
+        "verification": {
+          "passed": 486,
+          "total": 486,
+          "failures": []
+        },
+        "state-verification": {
+          "passed": 78,
+          "total": 78,
+          "failures": []
+        },
+        "security-verification": {
+          "passed": 57,
+          "total": 57,
+          "failures": []
+        },
+        "application-verification": {
+          "passed": 18,
+          "total": 18,
+          "failures": []
+        }
+      },
+      "report_sha256": {
+        "verification": "ea39298e164d3db202d108bd1860cdc38be0d8c2de6b4fe648d501da22ea283a",
+        "state-verification": "b0b808add0e56b4b6d791cdacdebac71083b9c1620be75701d78519326fe7076",
+        "security-verification": "714e6c06625042432dcd97b476550eff195179d695537ceb4b9eba89b40c75b7",
+        "application-verification": "77e47de362dfd05815bab13f14d7462d16476ba1e10035d7ad5e02325677c24f",
+        "packages": "2a4ecda5b006b2d23d0995b7fd2c5e6503df359571df55249c9538d0a57b4ab6",
+        "package-smoke": "9ef543fe3d200e40e559aa072c37c704ffd282f56edc00c3386661a5195055b8",
+        "dependency-audit": "70d627fbf75def4d39492b91ed31929b7236f48a31639a8dff1f3d180d05a9e2",
+        "compatibility": "00d6ab4e1d7c07dc4061c1e22d48372f08279c79e4888732b1e92fe65c956cde"
+      },
+      "driver_runtimes": {
+        "python": {
+          "runtime": "Python",
+          "version": "3.9.13"
+        },
+        "javascript": {
+          "runtime": "Node.js",
+          "version": "16.0.0"
+        },
+        "dotnet": {
+          "runtime": "System.Private.CoreLib",
+          "version": "8.0.31",
+          "library": "0.1.0.0"
+        },
+        "java": {
+          "runtime": "Java",
+          "version": "1.8.0_504"
+        },
+        "dotnet_framework": {
+          "runtime": "mscorlib",
+          "version": "4.0.30319.42000",
+          "library": "0.1.0.0"
+        },
+        "dotnet6": {
+          "runtime": "System.Private.CoreLib",
+          "version": "6.0.36",
+          "library": "0.1.0.0"
+        }
+      },
+      "packages": 12,
+      "consumers": 9,
+      "dependency_queries": 32,
+      "dependency_findings": 0
+    },
+    "ci-legacy-ubuntu": {
+      "suites": {
+        "verification": {
+          "passed": 390,
+          "total": 390,
+          "failures": []
+        },
+        "state-verification": {
+          "passed": 63,
+          "total": 63,
+          "failures": []
+        },
+        "security-verification": {
+          "passed": 43,
+          "total": 43,
+          "failures": []
+        },
+        "application-verification": {
+          "passed": 16,
+          "total": 16,
+          "failures": []
+        }
+      },
+      "report_sha256": {
+        "verification": "216875c9d53cb20436413f3c79708e083386812fbe2dcedf2dc5a17ba24f2f44",
+        "state-verification": "c8905af474ae7346fe7de0b3dba59d8d828ba0d64c35c5992f89a030a553b63b",
+        "security-verification": "3ce30627e03f888fb40442ec1df3c8b8e4ef70c8c94408efa0a9c5a45a2cdac4",
+        "application-verification": "a5cf38e10fcfcf00b5cf33bc5f29ffb57eb4cc2d9c31ce519f3f14bd9614b5a3",
+        "packages": "c9d7f3d1c742b3a7311663f8151d2456475f96bf6991e3123867c1377ab2b3aa",
+        "package-smoke": "a23467c033bb340432b61ee51ee851ac8b65848763698a30a5946eef11ef80f3",
+        "dependency-audit": "be149a4e73c75abe0a9b1b84fb37ea326722c391e62814c812f5cc8032d4dbd2",
+        "compatibility": "b24decd606da94ee385f695caf0834bfc3ff26a4c97530dce61acc2a3aa7de79"
+      },
+      "driver_runtimes": {
+        "python": {
+          "runtime": "Python",
+          "version": "3.9.25"
+        },
+        "javascript": {
+          "runtime": "Node.js",
+          "version": "16.0.0"
+        },
+        "dotnet": {
+          "runtime": "System.Private.CoreLib",
+          "version": "8.0.31",
+          "library": "0.1.0.0"
+        },
+        "java": {
+          "runtime": "Java",
+          "version": "1.8.0_504"
+        },
+        "dotnet6": {
+          "runtime": "System.Private.CoreLib",
+          "version": "6.0.36",
+          "library": "0.1.0.0"
+        }
+      },
+      "packages": 12,
+      "consumers": 8,
+      "dependency_queries": 31,
+      "dependency_findings": 0
+    }
+  }
+}

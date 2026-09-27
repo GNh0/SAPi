@@ -1,0 +1,15 @@
+{
+  "utc": "2026-09-27T15:39:58.628947+00:00",
+  "passed": [
+    "python wheel import/roundtrip",
+    "state wheel operator init/issue/key",
+    "application wheel init/inventory",
+    "npm package exports/roundtrip/state export",
+    "NuGet dependency restore/roundtrip/adapter assembly/state API",
+    "Java JAR consumer compile/roundtrip/state API",
+    "NuGet net462 dependency restore/roundtrip/schema/adapter",
+    "NuGet net6.0 dependency restore/roundtrip/schema/adapter",
+    "NuGet standard dependency restore/roundtrip/schema (netstandard2.0 assembly on .NET 6)"
+  ],
+  "packages_report_sha256": "2a4ecda5b006b2d23d0995b7fd2c5e6503df359571df55249c9538d0a57b4ab6"
+}

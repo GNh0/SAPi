@@ -1,0 +1,65 @@
+{
+  "utc": "2026-09-27T15:39:23.957183+00:00",
+  "driver_runtimes": {
+    "python": {
+      "runtime": "Python",
+      "version": "3.9.13"
+    },
+    "javascript": {
+      "runtime": "Node.js",
+      "version": "16.0.0"
+    },
+    "dotnet": {
+      "runtime": "System.Private.CoreLib",
+      "version": "8.0.31",
+      "library": "0.1.0.0"
+    },
+    "java": {
+      "runtime": "Java",
+      "version": "1.8.0_504"
+    },
+    "dotnet_framework": {
+      "runtime": "mscorlib",
+      "version": "4.0.30319.42000",
+      "library": "0.1.0.0"
+    },
+    "dotnet6": {
+      "runtime": "System.Private.CoreLib",
+      "version": "6.0.36",
+      "library": "0.1.0.0"
+    }
+  },
+  "suites": {
+    "verification": {
+      "passed": 486,
+      "total": 486,
+      "failures": []
+    },
+    "state-verification": {
+      "passed": 78,
+      "total": 78,
+      "failures": []
+    },
+    "security-verification": {
+      "passed": 57,
+      "total": 57,
+      "failures": []
+    },
+    "application-verification": {
+      "passed": 18,
+      "total": 18,
+      "failures": []
+    }
+  },
+  "report_sha256": {
+    "verification": "ea39298e164d3db202d108bd1860cdc38be0d8c2de6b4fe648d501da22ea283a",
+    "state-verification": "b0b808add0e56b4b6d791cdacdebac71083b9c1620be75701d78519326fe7076",
+    "security-verification": "714e6c06625042432dcd97b476550eff195179d695537ceb4b9eba89b40c75b7",
+    "application-verification": "77e47de362dfd05815bab13f14d7462d16476ba1e10035d7ad5e02325677c24f"
+  },
+  "python_policy": {
+    "python": "3.9.13",
+    "address_policy_cases": 10
+  },
+  "framework_execution": "net462 assemblies execute on the installed Windows CLR 4.x; this does not certify a separate original 4.6.2 installation"
+}
