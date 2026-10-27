@@ -9,6 +9,13 @@ from sapi.constants import MAX_WIRE
 from sapi.http_limits import LimitedMetadataReader
 
 
+def valid_transport(path,sizes,media,transfer,encoding):
+    """Shared, side-effect-free transport decision for the listener and isolated evaluation."""
+    return (path=="/sapi" and len(sizes)==1 and sizes[0].isdigit() and
+            1<=int(sizes[0])<=MAX_WIRE and media==["application/sapi+jwe"] and
+            transfer is None and encoding is None)
+
+
 def make_server(application,*,host="127.0.0.1",port=8444,certificate=None,private_key=None,capacity=32,timeout=10,peer_requests=120,allowed_origins=()):
     if (certificate is None)!=(private_key is None) or not 1<=capacity<=256 or not 0<timeout<=30 or not 1<=peer_requests<=10000:raise ValueError("bounded listener configuration required")
     context=None
@@ -44,7 +51,7 @@ def make_server(application,*,host="127.0.0.1",port=8444,certificate=None,privat
                 origin=self.origin()
                 sizes=self.headers.get_all("Content-Length",[])
                 media=self.headers.get_all("Content-Type",[])
-                if self.path!="/sapi" or len(sizes)!=1 or not sizes[0].isdigit() or not 1<=int(sizes[0])<=MAX_WIRE or media!=["application/sapi+jwe"] or self.headers.get("Transfer-Encoding") is not None or self.headers.get("Content-Encoding") is not None:
+                if not valid_transport(self.path,sizes,media,self.headers.get("Transfer-Encoding"),self.headers.get("Content-Encoding")):
                     raise ValueError("invalid transport")
                 data=self.rfile.read(int(sizes[0]))
                 if len(data)!=int(sizes[0]):raise ValueError("incomplete request")

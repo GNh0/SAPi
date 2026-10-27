@@ -79,3 +79,9 @@ SQL은 고정된 `sapi_app_records` 테이블에서 값 바인딩으로 실행�
 수신은 기본 동시 연결 32개, 연결 수명 10초, 실제 socket peer당 분당 120개, metadata 16KiB, wire 128KiB로 제한합니다. 프록시 헤더를 주체나 peer의 근거로 사용하지 않습니다. 인증 주체의 호출 제한은 별도로 State Authority가 영속 관리합니다.
 
 직접 작성하는 핸들러는 [SDK 사용법](USAGE.md)의 스키마·policy와 `OwnedSql`을 사용합니다. 선언형 서비스의 고정 DB/외부 요청 경로 밖의 별도 코드에도 해당 처리가 필요합니다.
+
+로컬 관측 유형 회귀와 기록 범위는 [관측 요청 회귀](OBSERVED_REQUEST_REGRESSION.md)를 참고합니다.
+
+기술 비교 실험은 [로컬 API 비교](API_COMPARISON.md)를 참고합니다.
+
+실유입 shadow 경계와 미연결 상태는 [shadow 입력 설계](SHADOW_INPUT.md)를 참고합니다.

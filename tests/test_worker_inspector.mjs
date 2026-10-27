@@ -1,0 +1,48 @@
+// Runs the ESM graph in an isolated WebCrypto context with no process, require, network or Node imports.
+import vm from 'node:vm';
+import { webcrypto } from 'node:crypto';
+import { readFile } from 'node:fs/promises';
+import { pathToFileURL, fileURLToPath } from 'node:url';
+import path from 'node:path';
+
+const root=path.resolve('.');
+const ctx=vm.createContext({crypto:webcrypto,TextEncoder,TextDecoder,btoa,atob,console});
+const cache=new Map();
+async function moduleFor(url) {
+  if (!url.startsWith('file:')) throw new Error('non-local import forbidden');
+  const file=fileURLToPath(url);
+  if (!path.resolve(file).startsWith(root+path.sep)) throw new Error('outside project');
+  if (cache.has(url)) return cache.get(url);
+  const pending=readFile(file,'utf8').then(source=>new vm.SourceTextModule(source,{context:ctx,identifier:url,importModuleDynamically(){throw Error('dynamic import forbidden')}}));
+  cache.set(url,pending);return pending;
+}
+const entry=await moduleFor(pathToFileURL(path.join(root,'examples/shadow/worker-inspector.mjs')).href);
+await entry.link((name,parent)=>moduleFor(new URL(name,parent.identifier).href));
+await entry.evaluate();
+ctx.Inspector=entry.namespace.createIsolatedInspector;
+const sdk=(await cache.get(pathToFileURL(path.join(root,'sdks/javascript/src/index.js')).href)).namespace;
+ctx.Codec=sdk.Codec;ctx.StaticKeyProvider=sdk.StaticKeyProvider;ctx.MemoryReplayStore=sdk.MemoryReplayStore;
+const test=new vm.Script(`(async()=>{
+  if (typeof process !== 'undefined' || typeof fetch !== 'undefined') throw Error('non-worker global');
+  const master=crypto.getRandomValues(new Uint8Array(32));
+  const provider=new StaticKeyProvider({test:{master,subject:'alice',scopes:['orders_read']}});
+  const codec=new Codec('demo',provider), inspector=Inspector({service:'demo',keyProvider:provider,replayStore:new MemoryReplayStore()});
+  const ctx=await codec.request('test','orders_get',{id:'fixture'}), bytes=Uint8Array.from(new TextEncoder().encode(ctx.wire));
+  const first=await inspector.inspect(bytes), second=await inspector.inspect(bytes);
+  const other=Inspector({service:'demo',keyProvider:provider,replayStore:new MemoryReplayStore()});
+  const acrossIndependentStore=await other.inspect(bytes);
+  if(acrossIndependentStore.result!=='authenticated_no_handler') throw Error('expected independent replay state');
+  const shared=new MemoryReplayStore();
+  const left=Inspector({service:'demo',keyProvider:provider,replayStore:shared});
+  const right=Inspector({service:'demo',keyProvider:provider,replayStore:shared});
+  const fresh=await codec.request('test','orders_get',{id:'fixture'});
+  const freshBytes=Uint8Array.from(new TextEncoder().encode(fresh.wire));
+  const concurrent=await Promise.all([left.inspect(freshBytes),right.inspect(freshBytes)]);
+  if(concurrent.map(x=>x.result).sort().join(',')!=='authenticated_no_handler,replay') throw Error('shared store claim failed');
+  const pieces=ctx.wire.split('.'); pieces[3]=(pieces[3][0]==='A'?'B':'A')+pieces[3].slice(1);
+  const altered=await inspector.inspect(Uint8Array.from(new TextEncoder().encode(pieces.join('.'))) );
+  if(first.result!=='authenticated_no_handler' || second.result!=='replay' || altered.result!=='wire_rejected_under_test_keys') throw Error('unexpected result');
+  if((await inspector.inspect(new Uint8Array(8193))).result!=='unsupported') throw Error('bounds');
+  console.log('isolated WebCrypto SDK: valid, replay, independent/shared stores, tamper and bounds passed');
+})()`);
+await test.runInContext(ctx);
