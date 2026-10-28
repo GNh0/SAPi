@@ -20,8 +20,11 @@ const entry=await moduleFor(pathToFileURL(path.join(root,'examples/shadow/worker
 await entry.link((name,parent)=>moduleFor(new URL(name,parent.identifier).href));
 await entry.evaluate();
 ctx.Inspector=entry.namespace.createIsolatedInspector;
+const adapter=await moduleFor(pathToFileURL(path.join(root,'examples/shadow/atomic-replay-contract.mjs')).href);
+await adapter.link((name,parent)=>moduleFor(new URL(name,parent.identifier).href));
+await adapter.evaluate();ctx.Atomic=adapter.namespace.atomicReplayAdapter;
 const sdk=(await cache.get(pathToFileURL(path.join(root,'sdks/javascript/src/index.js')).href)).namespace;
-ctx.Codec=sdk.Codec;ctx.StaticKeyProvider=sdk.StaticKeyProvider;ctx.MemoryReplayStore=sdk.MemoryReplayStore;
+ctx.Codec=sdk.Codec;ctx.StaticKeyProvider=sdk.StaticKeyProvider;ctx.MemoryReplayStore=sdk.MemoryReplayStore;ctx.SecureServer=sdk.SecureServer;
 const test=new vm.Script(`(async()=>{
   if (typeof process !== 'undefined' || typeof fetch !== 'undefined') throw Error('non-worker global');
   const master=crypto.getRandomValues(new Uint8Array(32));
@@ -43,6 +46,20 @@ const test=new vm.Script(`(async()=>{
   const altered=await inspector.inspect(Uint8Array.from(new TextEncoder().encode(pieces.join('.'))) );
   if(first.result!=='authenticated_no_handler' || second.result!=='replay' || altered.result!=='wire_rejected_under_test_keys') throw Error('unexpected result');
   if((await inspector.inspect(new Uint8Array(8193))).result!=='unsupported') throw Error('bounds');
+  let calls=0; const claims=new Set();
+  const backend={async admit(){return true;},async claim(key){if(claims.has(key))return false;claims.add(key);return true;}};
+  const store=Atomic(backend), schema={type:'object',properties:{id:{type:'string',maxBytes:32}}};
+  const s1=new SecureServer(new Codec('demo',provider),store), s2=new SecureServer(new Codec('demo',provider),store);
+  for(const server of [s1,s2]) server.register('orders_get','orders_read',schema,schema,()=>true,(_p,d)=>{calls++;return d;});
+  const c=await codec.request('test','orders_get',{id:'fixture'});
+  const responses=await Promise.all([s1.handle(c.wire),s2.handle(c.wire)]);
+  const payloads=await Promise.all(responses.map(async wire=>(await codec.open(wire,'res')).payload));
+  if(calls!==1||payloads.filter(x=>x.ok).length!==1||payloads.filter(x=>x.error==='replay').length!==1) throw Error('atomic fake contract');
+  const failing=new SecureServer(new Codec('demo',provider),Atomic({async admit(){return true;},async claim(){throw Error('storage');}}));
+  failing.register('orders_get','orders_read',schema,schema,()=>true,(_p,d)=>{calls++;return d;});
+  const failure=await codec.request('test','orders_get',{id:'fixture'});
+  const failedPayload=(await codec.open(await failing.handle(failure.wire),'res')).payload;
+  if(failedPayload.ok||failedPayload.error!=='internal_error'||calls!==1) throw Error('backend failure did not fail closed');
   console.log('isolated WebCrypto SDK: valid, replay, independent/shared stores, tamper and bounds passed');
 })()`);
 await test.runInContext(ctx);

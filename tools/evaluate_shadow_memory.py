@@ -14,6 +14,7 @@ ROOT = Path(__file__).resolve().parents[1]
 for path in (ROOT/'sdks/python', ROOT/'services/state', ROOT/'services/application'):
     sys.path.insert(0, str(path))
 from comparison_common import COLLECTIONS, baseline_transport
+from shadow_schema import MEMORY_ID, initialize
 from sapi import Codec,KeyRecord,SapiError
 from sapi_application import Application
 from sapi_application.server import valid_transport
@@ -71,7 +72,7 @@ def evaluate(request,db_path):
     classification=path_class(path); media_class={'':'none','application/json':'json','application/sapi+jwe':'sapi','application/xml':'xml','text/xml':'xml'}.get(media,'other')
     db_path=Path(db_path);db_path.parent.mkdir(parents=True,exist_ok=True)
     with closing(sqlite3.connect(db_path)) as db:
-        db.executescript(DDL);db.execute('PRAGMA foreign_keys=ON');db.execute('BEGIN IMMEDIATE')
+        initialize(db,DDL,MEMORY_ID);db.execute('PRAGMA foreign_keys=ON');db.execute('BEGIN IMMEDIATE')
         try:
             if db.execute('SELECT 1 FROM input_observations WHERE request_id=?',(request['request_id'],)).fetchone():
                 db.execute('UPDATE input_observations SET duplicate_count=duplicate_count+1 WHERE request_id=?',(request['request_id'],)); db.commit(); return 'duplicate_unverified'

@@ -13,6 +13,7 @@ import uuid
 
 from compare_api_security import RAW_CASES, VARIANTS, action, digest, expected_for, start_variant
 from sapi.serialization import parse
+from shadow_schema import IMPORT_ID, initialize, check_schema
 
 MAX_BYTES=65536
 MAX_EVENTS=64
@@ -71,7 +72,7 @@ def import_batch(batch,db_path):
     validate(batch)
     db_path.parent.mkdir(parents=True,exist_ok=True)
     with closing(sqlite3.connect(db_path)) as db:
-        db.executescript(DDL); db.execute('PRAGMA foreign_keys=ON'); db.execute('BEGIN IMMEDIATE')
+        initialize(db,DDL,IMPORT_ID); db.execute('PRAGMA foreign_keys=ON'); db.execute('BEGIN IMMEDIATE')
         try:
             fingerprint=hashlib.sha256(json.dumps(batch,sort_keys=True,separators=(',',':')).encode('utf-8')).hexdigest()
             prior=db.execute('SELECT batch_digest FROM shadow_batches WHERE batch_id=?',(batch['batch_id'],)).fetchone()
@@ -113,6 +114,7 @@ def import_batch(batch,db_path):
 def report(path):
     if not path.is_file(): raise ValueError('database does not exist')
     with closing(sqlite3.connect(path.resolve().as_uri()+'?mode=ro',uri=True)) as db:
+        check_schema(db,DDL,IMPORT_ID)
         batches=db.execute('SELECT count(*),coalesce(sum(seen),0),coalesce(sum(sampled_out),0),coalesce(sum(queue_dropped),0),coalesce(sum(observer_error),0),coalesce(sum(duplicates),0),coalesce(sum(overflow),0) FROM shadow_batches').fetchone()
         event_counts=dict(db.execute('SELECT mapping_status,count(*) FROM shadow_events GROUP BY mapping_status').fetchall())
         failures=db.execute("SELECT count(*) FROM shadow_results WHERE verdict<>'pass'").fetchone()[0]

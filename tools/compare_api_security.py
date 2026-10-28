@@ -22,9 +22,9 @@ import uuid
 ROOT = Path(__file__).resolve().parents[1]
 for path in (ROOT/'tools', ROOT/'sdks/python', ROOT/'services/state', ROOT/'services/application'):
     sys.path.insert(0, str(path))
-from comparison_common import COLLECTIONS, baseline_transport
+from comparison_common import COLLECTIONS, baseline_transport, BaselineQuota, BaselineCostBudget
 from evidence_common import provenance, failure_category
-from sapi import Codec, KeyRecord, Principal, SapiError
+from sapi import Codec, KeyRecord, Principal, SapiError, SplitBudgetMemoryReplayStore
 from sapi.serialization import parse, digest as wire_digest
 from sapi_application import Application, Records, make_server
 
@@ -85,22 +85,25 @@ def expected_snapshot(include_own,submitted=False):
     return checksum,summary
 
 
-def start_variant(kind, folder):
-    db = folder/(kind+'.sqlite'); db.touch(); records = Records(str(db))
+def start_variant(kind, folder, *, idempotency=False, split_budget=False, collections=None):
+    if split_budget and kind not in ('baseline_replay','sapi'): raise ValueError('split budget requires replay-aware variant')
+    db = folder/(kind+'.sqlite'); db.touch(); records = Records(str(db),enable_idempotency=idempotency)
     records.mutate('create','demo','orders',Principal('bob',frozenset()),{'id':'foreign','data':{'description':'fixture','quantity':1}},initial='created',write_phases=['created'])
-    keys={'writer':KeyRecord(secrets.token_bytes(32),'alice',frozenset({'orders_read','orders_write'})), 'reader':KeyRecord(secrets.token_bytes(32),'alice',frozenset({'orders_read'}))}
+    keys={'writer':KeyRecord(secrets.token_bytes(32),'alice',frozenset({'orders_read','orders_write'})), 'writer2':KeyRecord(secrets.token_bytes(32),'alice',frozenset({'orders_read','orders_write'})), 'reader':KeyRecord(secrets.token_bytes(32),'alice',frozenset({'orders_read'}))}
     codec=Codec('demo',keys)
     counts={'gateway':0,'business':0}
     class CountedRecords:
+        idempotency_enabled=idempotency
         def get(self,*a,**kw): counts['business']+=1; return records.get(*a,**kw)
         def mutate(self,*a,**kw): counts['business']+=1; return records.mutate(*a,**kw)
-    app=Application(codec,None,CountedRecords(),COLLECTIONS)
+        def receipt(self,*a,**kw): counts['business']+=1; return records.receipt(*a,**kw)
+    app=Application(codec,SplitBudgetMemoryReplayStore() if split_budget and kind=='sapi' else None,CountedRecords(),COLLECTIONS if collections is None else collections,enable_idempotency=idempotency,split_budget=split_budget and kind=='sapi')
     tokens={name:secrets.token_urlsafe(32) for name in keys}
-    replay_seen=set(); replay_lock=threading.Lock()
+    replay_seen=set(); replay_lock=threading.Lock(); quota=BaselineQuota(); cost=BaselineCostBudget()
     if kind == 'sapi':
         class Gateway:
             def handle(self,wire): counts['gateway']+=1; return app.handle(wire)
-        server=make_server(Gateway(),port=0,peer_requests=100,timeout=3)
+        server=make_server(Gateway(),port=0,peer_requests=200 if split_budget else 100,timeout=3)
     else:
         class Baseline(http.server.BaseHTTPRequestHandler):
             protocol_version='HTTP/1.1'
@@ -119,6 +122,13 @@ def start_variant(kind, folder):
                         if hmac.compare_digest(auth[0], 'Bearer '+token): identity=name
                 if identity is None: self.respond(401); return
                 counts['gateway']+=1
+                op='orders_'+self.path[len('/orders/'):]
+                operation=app.server.operations.get(op)
+                try:
+                    if not (cost.admit(keys[identity].subject,int(time.time())) if split_budget else quota.admit(keys[identity].subject,op if operation else 'unknown',int(time.time()),operation[5] if operation else 60,operation[6] if operation else 60)):
+                        self.respond(429,{'ok':False,'error':'rate_limited'}); return
+                except Exception:
+                    self.respond(503,{'ok':False,'error':'rate_capacity'}); return
                 if kind=='baseline_replay':
                     values=self.headers.get_all('X-Request-ID',[])
                     if len(values)!=1 or len(values[0])!=32 or any(c not in '0123456789abcdef' for c in values[0]): self.respond(400,{'ok':False,'error':'invalid_input'}); return
@@ -129,19 +139,23 @@ def start_variant(kind, folder):
                         replay_seen.add(key)
                 try:
                     data=parse(self.rfile.read(int(sizes[0])))
-                    op='orders_'+self.path[len('/orders/'):]
-                    operation=app.server.operations.get(op)
+                except SapiError:
+                    self.respond(400,{'ok':False,'error':'invalid_input'}); return
+                try:
                     if operation is None: self.respond(404); return
                     scope,inschema,outschema,policy,handler,_,_=operation
                     principal=Principal(keys[identity].subject,keys[identity].scopes)
                     if scope not in principal.scopes: raise SapiError('forbidden')
                     if not inschema.validate(data): raise SapiError('invalid_input')
                     if not policy(principal,data): raise SapiError('forbidden')
+                    if split_budget and not quota.admit(principal.subject,op,int(time.time()),operation[5],operation[6]): raise SapiError('rate_limited')
                     response=handler(principal,data)
                     if not outschema.validate(response): raise ValueError()
                     self.respond(200,{'ok':True,'data':response})
-                except SapiError as exc: self.respond(403 if exc.code=='forbidden' else 400,{'ok':False,'error':exc.code})
-                except Exception: self.respond(400,{'ok':False,'error':'invalid_input'})
+                except SapiError as exc:
+                    code=exc.code if exc.code in ('replay','replay_capacity','rate_limited','rate_capacity','unknown_operation','forbidden','invalid_input','idempotency_conflict','idempotency_expired','idempotency_capacity','idempotency_clock') else 'internal_error'
+                    self.respond(403 if code=='forbidden' else 429 if code=='rate_limited' else 409 if code=='idempotency_conflict' else 410 if code=='idempotency_expired' else 503 if code in ('idempotency_capacity','idempotency_clock') else 500 if code=='internal_error' else 400,{'ok':False,'error':code})
+                except Exception: self.respond(500,{'ok':False,'error':'internal_error'})
         server=http.server.ThreadingHTTPServer(('127.0.0.1',0),Baseline); server.daemon_threads=True
     thread=threading.Thread(target=server.serve_forever,daemon=True); thread.start()
     return records,codec,tokens,counts,server,thread
