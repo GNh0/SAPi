@@ -34,6 +34,11 @@ jobs:
         run: |
           python -c "from pathlib import Path; (Path.cwd().parent / 'evidence').mkdir(exist_ok=True)"
           node tests/test_local_comparison.mjs
+      - name: Verify receipt contract and bounded API comparison
+        timeout-minutes: 2
+        run: |
+          node --experimental-sqlite tests/test_receipt_contract.mjs
+          node --experimental-sqlite tests/test_contract_comparison.mjs
       - name: Verify bounded seeded SDK corpus
         timeout-minutes: 2
         shell: bash
