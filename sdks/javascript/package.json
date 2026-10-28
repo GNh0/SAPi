@@ -5,7 +5,7 @@
   "description": "Experimental transport-independent SAPI/0.1 message security",
   "license": "Apache-2.0",
   "repository": {"type": "git", "url": "https://github.com/GNh0/SAPi.git"},
-  "exports": {".": "./src/index.js", "./http": "./src/http.js", "./state-node": "./src/state-node.js"},
+  "exports": {".": "./src/index.js", "./http": "./src/http.js", "./state-node": "./src/state-node.js", "./state-d1": "./src/state-d1.js"},
   "files": ["src"],
   "engines": {"node": ">=16"}
 }

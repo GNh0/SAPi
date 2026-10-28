@@ -1,0 +1,67 @@
+-- Isolated generic SDK example. Apply once to a dedicated or reviewed D1 schema.
+CREATE TABLE sapi_replay_claims (name TEXT PRIMARY KEY NOT NULL, expires INTEGER NOT NULL);
+CREATE INDEX sapi_replay_claims_expiry ON sapi_replay_claims(expires);
+CREATE TABLE sapi_replay_rates (name TEXT PRIMARY KEY NOT NULL, started INTEGER NOT NULL, used INTEGER NOT NULL, period INTEGER NOT NULL);
+CREATE INDEX sapi_replay_rates_expiry ON sapi_replay_rates(started,period);
+CREATE TABLE sapi_replay_admission (id TEXT PRIMARY KEY NOT NULL, global_name TEXT NOT NULL, operation_name TEXT NOT NULL, at INTEGER NOT NULL, requested INTEGER NOT NULL, period INTEGER NOT NULL);
+CREATE TRIGGER sapi_replay_admission_apply AFTER INSERT ON sapi_replay_admission BEGIN
+ INSERT INTO sapi_replay_rates(name,started,used,period) VALUES (NEW.global_name,NEW.at,1,60)
+ ON CONFLICT(name) DO UPDATE SET
+ started=CASE WHEN NEW.at>=started+max(period,60) THEN NEW.at ELSE started END,
+ used=CASE WHEN NEW.at>=started+max(period,60) THEN 1 ELSE used+1 END,
+ period=CASE WHEN NEW.at>=started+max(period,60) THEN 60 ELSE max(period,60) END;
+ INSERT INTO sapi_replay_rates(name,started,used,period) VALUES (NEW.operation_name,NEW.at,1,NEW.period)
+ ON CONFLICT(name) DO UPDATE SET
+ started=CASE WHEN NEW.at>=started+max(period,NEW.period) THEN NEW.at ELSE started END,
+ used=CASE WHEN NEW.at>=started+max(period,NEW.period) THEN 1 ELSE used+1 END,
+ period=CASE WHEN NEW.at>=started+max(period,NEW.period) THEN NEW.period ELSE max(period,NEW.period) END;
+ DELETE FROM sapi_replay_admission WHERE id=NEW.id;
+END;
+CREATE TABLE sapi_replay_bounded (id TEXT PRIMARY KEY NOT NULL, cost_name TEXT NOT NULL, claim_name TEXT NOT NULL, expires INTEGER NOT NULL, at INTEGER NOT NULL, period INTEGER NOT NULL, skew INTEGER NOT NULL, decision TEXT NOT NULL CHECK(decision IN ('accepted','replay')));
+CREATE TRIGGER sapi_replay_bounded_apply AFTER INSERT ON sapi_replay_bounded BEGIN
+ INSERT INTO sapi_replay_rates(name,started,used,period) VALUES (NEW.cost_name,NEW.at,1,NEW.period)
+ ON CONFLICT(name) DO UPDATE SET
+ started=CASE WHEN NEW.at>=started+max(period,NEW.period) THEN NEW.at ELSE started END,
+ used=CASE WHEN NEW.at>=started+max(period,NEW.period) THEN 1 ELSE used+1 END,
+ period=CASE WHEN NEW.at>=started+max(period,NEW.period) THEN NEW.period ELSE max(period,NEW.period) END;
+ INSERT INTO sapi_replay_claims(name,expires) SELECT NEW.claim_name,NEW.expires WHERE NEW.decision='accepted'
+ ON CONFLICT(name) DO UPDATE SET expires=excluded.expires WHERE sapi_replay_claims.expires+NEW.skew<=NEW.at;
+ DELETE FROM sapi_replay_bounded WHERE id=NEW.id;
+END;
+CREATE TABLE sapi_replay_policy (service TEXT PRIMARY KEY NOT NULL, version TEXT NOT NULL, config TEXT NOT NULL);
+-- Additive, explicit transition to one service per database. Review/drain old
+-- clients first. This adds no owner and changes no existing row by itself.
+CREATE TABLE sapi_replay_owner (singleton INTEGER PRIMARY KEY CHECK(singleton=1), service TEXT NOT NULL, version TEXT NOT NULL, config TEXT NOT NULL);
+CREATE TRIGGER sapi_replay_owner_validate BEFORE INSERT ON sapi_replay_owner BEGIN
+ SELECT CASE WHEN typeof(NEW.service)<>'text' OR instr(NEW.service,char(0))<>0 OR length(NEW.service) NOT BETWEEN 1 AND 64 OR NEW.service GLOB '*[^A-Za-z0-9_-]*' OR typeof(NEW.version)<>'text' OR instr(NEW.version,char(0))<>0 OR length(NEW.version) NOT BETWEEN 1 AND 64 OR NEW.version GLOB '*[^A-Za-z0-9_.-]*' THEN RAISE(ABORT,'invalid owner identity') END;
+ SELECT CASE WHEN NOT json_valid(NEW.config) THEN RAISE(ABORT,'invalid owner config') END;
+ SELECT CASE WHEN json_extract(NEW.config,'$.mode') IS NOT 'exclusive' OR json_type(NEW.config,'$.capacity') IS NOT 'integer' OR json_extract(NEW.config,'$.capacity') NOT BETWEEN 1 AND 10000 OR json_type(NEW.config,'$.rateCapacity') IS NOT 'integer' OR json_extract(NEW.config,'$.rateCapacity') NOT BETWEEN 1 AND 10000 THEN RAISE(ABORT,'invalid owner capacity') END;
+ SELECT CASE WHEN EXISTS(SELECT 1 FROM sapi_replay_policy WHERE service<>NEW.service OR version<>NEW.version OR config<>NEW.config) THEN RAISE(ABORT,'different policy exists') END;
+ SELECT CASE WHEN (SELECT count(*) FROM sapi_replay_claims)>json_extract(NEW.config,'$.capacity') OR (SELECT count(*) FROM sapi_replay_rates)>json_extract(NEW.config,'$.rateCapacity') THEN RAISE(ABORT,'capacity below retained rows') END;
+ SELECT CASE WHEN EXISTS(SELECT 1 FROM sapi_replay_claims WHERE CASE WHEN json_valid(name) THEN NOT COALESCE(((json_type(name) IS 'array') AND (json_array_length(name)=3) AND (json_type(name,'$[0]') IS 'text' AND json_extract(name,'$[0]') IS NEW.service) AND ((json_type(name,'$[1]') IS 'text' AND instr(json_extract(name,'$[1]'),char(0))=0 AND length(json_extract(name,'$[1]')) BETWEEN 1 AND 64 AND json_extract(name,'$[1]') NOT GLOB '*[^A-Za-z0-9_-]*')) AND (json_type(name,'$[2]') IS 'text' AND instr(json_extract(name,'$[2]'),char(0))=0 AND length(json_extract(name,'$[2]'))=32 AND json_extract(name,'$[2]') NOT GLOB '*[^0-9a-f]*') AND (name=json_array(json_extract(name,'$[0]'),json_extract(name,'$[1]'),json_extract(name,'$[2]')))),0) ELSE 1 END) THEN RAISE(ABORT,'foreign claim data') END;
+ SELECT CASE WHEN EXISTS(SELECT 1 FROM sapi_replay_rates WHERE CASE WHEN json_valid(name) THEN NOT COALESCE(((json_type(name) IS 'array') AND (json_type(name,'$[0]') IS 'text' AND json_extract(name,'$[0]') IN ('global','cost','operation')) AND (json_type(name,'$[1]') IS 'text' AND json_extract(name,'$[1]') IS NEW.service) AND ((json_type(name,'$[2]') IS 'text' AND instr(json_extract(name,'$[2]'),char(0))=0 AND length(json_extract(name,'$[2]')) BETWEEN 1 AND 64 AND json_extract(name,'$[2]') NOT GLOB '*[^A-Za-z0-9_-]*')) AND ((((json_extract(name,'$[0]') IN ('global','cost')) AND json_array_length(name)=3 AND name=json_array(json_extract(name,'$[0]'),json_extract(name,'$[1]'),json_extract(name,'$[2]'))) OR (json_extract(name,'$[0]')='operation' AND json_array_length(name)=4 AND (json_type(name,'$[3]') IS 'text' AND instr(json_extract(name,'$[3]'),char(0))=0 AND length(json_extract(name,'$[3]')) BETWEEN 1 AND 64 AND json_extract(name,'$[3]') NOT GLOB '*[^A-Za-z0-9_-]*') AND name=json_array(json_extract(name,'$[0]'),json_extract(name,'$[1]'),json_extract(name,'$[2]'),json_extract(name,'$[3]')))))),0) ELSE 1 END) THEN RAISE(ABORT,'foreign rate data') END;
+END;
+CREATE TRIGGER sapi_replay_owner_seed AFTER INSERT ON sapi_replay_owner BEGIN
+ INSERT INTO sapi_replay_policy(service,version,config) VALUES(NEW.service,NEW.version,NEW.config) ON CONFLICT(service) DO NOTHING;
+END;
+CREATE TRIGGER sapi_replay_policy_insert_guard BEFORE INSERT ON sapi_replay_policy
+ WHEN EXISTS(SELECT 1 FROM sapi_replay_owner o WHERE o.service<>NEW.service OR o.version<>NEW.version OR o.config<>NEW.config)
+ BEGIN SELECT RAISE(ABORT,'exclusive owner policy mismatch'); END;
+CREATE TRIGGER sapi_replay_policy_update_guard BEFORE UPDATE ON sapi_replay_policy
+ WHEN EXISTS(SELECT 1 FROM sapi_replay_owner) BEGIN SELECT RAISE(ABORT,'exclusive owner policy immutable'); END;
+CREATE TRIGGER sapi_replay_policy_delete_guard BEFORE DELETE ON sapi_replay_policy
+ WHEN EXISTS(SELECT 1 FROM sapi_replay_owner) BEGIN SELECT RAISE(ABORT,'exclusive owner policy immutable'); END;
+CREATE TRIGGER sapi_replay_owner_update_guard BEFORE UPDATE ON sapi_replay_owner
+ BEGIN SELECT RAISE(ABORT,'exclusive owner immutable'); END;
+CREATE TRIGGER sapi_replay_owner_delete_guard BEFORE DELETE ON sapi_replay_owner
+ BEGIN SELECT RAISE(ABORT,'exclusive owner immutable'); END;
+CREATE TRIGGER sapi_replay_claim_owner_guard BEFORE INSERT ON sapi_replay_claims WHEN EXISTS(SELECT 1 FROM sapi_replay_owner) BEGIN
+ SELECT CASE WHEN (CASE WHEN json_valid(NEW.name) THEN NOT COALESCE(((json_type(NEW.name) IS 'array') AND (json_array_length(NEW.name)=3) AND (json_type(NEW.name,'$[0]') IS 'text' AND json_extract(NEW.name,'$[0]') IS (SELECT service FROM sapi_replay_owner WHERE singleton=1)) AND ((json_type(NEW.name,'$[1]') IS 'text' AND instr(json_extract(NEW.name,'$[1]'),char(0))=0 AND length(json_extract(NEW.name,'$[1]')) BETWEEN 1 AND 64 AND json_extract(NEW.name,'$[1]') NOT GLOB '*[^A-Za-z0-9_-]*')) AND (json_type(NEW.name,'$[2]') IS 'text' AND instr(json_extract(NEW.name,'$[2]'),char(0))=0 AND length(json_extract(NEW.name,'$[2]'))=32 AND json_extract(NEW.name,'$[2]') NOT GLOB '*[^0-9a-f]*') AND (NEW.name=json_array(json_extract(NEW.name,'$[0]'),json_extract(NEW.name,'$[1]'),json_extract(NEW.name,'$[2]')))),0) ELSE 1 END) THEN RAISE(ABORT,'foreign claim namespace') END;
+ SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM sapi_replay_claims WHERE name=NEW.name) AND (SELECT count(*) FROM sapi_replay_claims)>=(SELECT json_extract(config,'$.capacity') FROM sapi_replay_owner WHERE singleton=1) THEN RAISE(ABORT,'claim capacity') END;
+END;
+CREATE TRIGGER sapi_replay_rate_owner_guard BEFORE INSERT ON sapi_replay_rates WHEN EXISTS(SELECT 1 FROM sapi_replay_owner) BEGIN
+ SELECT CASE WHEN (CASE WHEN json_valid(NEW.name) THEN NOT COALESCE(((json_type(NEW.name) IS 'array') AND (json_type(NEW.name,'$[0]') IS 'text' AND json_extract(NEW.name,'$[0]') IN ('global','cost','operation')) AND (json_type(NEW.name,'$[1]') IS 'text' AND json_extract(NEW.name,'$[1]') IS (SELECT service FROM sapi_replay_owner WHERE singleton=1)) AND ((json_type(NEW.name,'$[2]') IS 'text' AND instr(json_extract(NEW.name,'$[2]'),char(0))=0 AND length(json_extract(NEW.name,'$[2]')) BETWEEN 1 AND 64 AND json_extract(NEW.name,'$[2]') NOT GLOB '*[^A-Za-z0-9_-]*')) AND ((((json_extract(NEW.name,'$[0]') IN ('global','cost')) AND json_array_length(NEW.name)=3 AND NEW.name=json_array(json_extract(NEW.name,'$[0]'),json_extract(NEW.name,'$[1]'),json_extract(NEW.name,'$[2]'))) OR (json_extract(NEW.name,'$[0]')='operation' AND json_array_length(NEW.name)=4 AND (json_type(NEW.name,'$[3]') IS 'text' AND instr(json_extract(NEW.name,'$[3]'),char(0))=0 AND length(json_extract(NEW.name,'$[3]')) BETWEEN 1 AND 64 AND json_extract(NEW.name,'$[3]') NOT GLOB '*[^A-Za-z0-9_-]*') AND NEW.name=json_array(json_extract(NEW.name,'$[0]'),json_extract(NEW.name,'$[1]'),json_extract(NEW.name,'$[2]'),json_extract(NEW.name,'$[3]')))))),0) ELSE 1 END) THEN RAISE(ABORT,'foreign rate namespace') END;
+ SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM sapi_replay_rates WHERE name=NEW.name) AND (SELECT count(*) FROM sapi_replay_rates)>=(SELECT json_extract(config,'$.rateCapacity') FROM sapi_replay_owner WHERE singleton=1) THEN RAISE(ABORT,'rate capacity') END;
+END;
+CREATE TRIGGER sapi_replay_claim_name_immutable BEFORE UPDATE OF name ON sapi_replay_claims WHEN EXISTS(SELECT 1 FROM sapi_replay_owner) AND NEW.name IS NOT OLD.name BEGIN SELECT RAISE(ABORT,'claim namespace immutable'); END;
+CREATE TRIGGER sapi_replay_rate_name_immutable BEFORE UPDATE OF name ON sapi_replay_rates WHEN EXISTS(SELECT 1 FROM sapi_replay_owner) AND NEW.name IS NOT OLD.name BEGIN SELECT RAISE(ABORT,'rate namespace immutable'); END;

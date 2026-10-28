@@ -50,7 +50,9 @@ The core JavaScript protocol modules use Web Crypto. Browser execution is not co
 
 The state service provides key lifecycle, replay and shared admission state; the application service provides declarative operations, owned SQL and constrained outbound requests. A multi-process deployment needs appropriately shared state and trusted key provisioning. The in-memory stores in the example do not provide those guarantees.
 
-TLS certificate provisioning and trust configuration remain the operator's responsibility. The GNho live-traffic integration and production Worker/D1 behavior have not been validated. Local synthetic results are not evidence of live traffic coverage. Read [security limits](spec/SECURITY.md), [state operations](docs/STATE.md), and [application service](docs/APPLICATION.md) before deployment.
+TLS certificate provisioning and trust configuration remain the operator's responsibility. The GNho live-traffic integration and production Worker/D1 behavior have not been comprehensively validated. Local synthetic results are not evidence of live traffic coverage. Read [security limits](spec/SECURITY.md), [state operations](docs/STATE.md), and [application service](docs/APPLICATION.md) before deployment.
+
+The JavaScript SDK also provides an optional [D1 replay and admission adapter](docs/d1-replay.md) through `sapi-protocol/state-d1`. It requires explicit exclusive ownership of a dedicated replay database and separate administrator initialization; ordinary requests do not run migrations or register policy. The default in-memory store remains process-local. The D1 adapter has subject bounds and operational limitations described in that document; local tests do not establish distributed production behavior.
 
 ## Development and verification
 

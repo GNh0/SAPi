@@ -33,7 +33,10 @@ export function createShadowBuffer({ samplePercent = 10, capacity = 64 } = {}) {
     if (size <= 65536) return 'medium';
     return 'large';
   }
-  function observe(request, response) {
+  // requestId is supplied by trusted server code, never taken from a request header.
+  function observe(request, response, {requestId} = {}) {
+    // Workbench requests may contain user source; do not observe them at all.
+    if (new URL(request.url).pathname === '/api/workbench/review') return;
     // Saturation is made visible; after saturation no completeness claim is possible.
     if (counters.seen >= 1000000) { overflow = true; return; }
     counters.seen++;
@@ -42,8 +45,9 @@ export function createShadowBuffer({ samplePercent = 10, capacity = 64 } = {}) {
       if (random[0] / 4294967296 * 100 >= samplePercent) { counters.sampled_out++; return; }
       if (queue.length >= capacity) { counters.queue_dropped++; return; }
       const method = request.method === 'GET' || request.method === 'POST' ? request.method : 'OTHER';
+      if (requestId !== undefined && (typeof requestId !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(requestId))) throw new Error('invalid server request id');
       const event = {
-        request_id: crypto.randomUUID(), observed_utc: new Date().toISOString(),
+        request_id: requestId ?? crypto.randomUUID(), observed_utc: new Date().toISOString(),
         path_class: request.url.length <= 2048 ? pathClass(new URL(request.url).pathname) : 'other', method,
         media_class: mediaClass(request.headers.get('content-type')),
         size_bucket: sizeBucket(request.headers.get('content-length')),

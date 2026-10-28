@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import {test} from 'node:test';
 import {createLocalComparison} from '../examples/shadow/local-comparison.mjs';
+import {createShadowBuffer} from '../examples/shadow/adapter.mjs';
 import {runMixed,fixturePlan} from '../examples/shadow/mixed-runner.mjs';
 import {atomicReplayAdapter} from '../examples/shadow/atomic-replay-contract.mjs';
 import {Codec,SecureServer,StaticKeyProvider,MemoryReplayStore,SplitBudgetMemoryReplayStore} from '../sdks/javascript/src/index.js';
@@ -11,6 +12,17 @@ import {DatabaseSync} from 'node:sqlite';
 import {unlinkSync,readdirSync} from 'node:fs';
 import {resolve} from 'node:path';
 const envelope=(overrides={})=>({correlationId:crypto.randomUUID(),operation:'put',identity:'allowed',data:{id:'one',value:'hello'},...overrides});
+
+test('shadow observation uses supplied server id and excludes workbench source',()=>{
+  const shadow=createShadowBuffer({samplePercent:100}), id=crypto.randomUUID(), response=new Response('ok');
+  shadow.observe(new Request('https://example.invalid/'),response,{requestId:id});
+  shadow.observe(new Request('https://example.invalid/api/workbench/review',{method:'POST',body:'sensitive-source'}),response,{requestId:crypto.randomUUID()});
+  shadow.observe(new Request('https://example.invalid/'),response,{requestId:'caller-supplied'});
+  const batch=shadow.drain();
+  assert.equal(batch.events.length,1);assert.equal(batch.events[0].request_id,id);
+  assert.equal(batch.counters.seen,2);assert.equal(batch.counters.observer_error,1);
+  assert.equal(JSON.stringify(batch).includes('sensitive-source'),false);
+});
 
 test('opt-in split budget preserves valid requests after replay while bounding total cost',async()=>{
   const master=crypto.getRandomValues(new Uint8Array(32));
