@@ -1,11 +1,12 @@
 [build-system]
-requires = ["setuptools>=84"]
+requires = ["setuptools>=84.1.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "sapi-state"
 version = "0.1.0a4"
 description = "SAPI durable replay and mTLS key lifecycle authority"
+license = "Apache-2.0"
 requires-python = ">=3.10"
 dependencies = ["sapi-protocol==0.1.0a4", "cryptography>=50.0.1,<51"]
 

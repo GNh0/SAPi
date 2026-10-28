@@ -7,7 +7,10 @@ import {Schema} from './schema.js';
 
 export class SecureServer {
   #operations = new Map();
-  constructor(codec, replayStore = new MemoryReplayStore()) { this.codec = codec; this.replay = replayStore; }
+  constructor(codec, replayStore = new MemoryReplayStore(), {splitBudget=false} = {}) {
+    if (typeof splitBudget !== 'boolean' || (splitBudget && typeof replayStore?.claimBounded !== 'function')) throw new TypeError('explicit split-budget store required');
+    this.codec = codec; this.replay = replayStore; this.splitBudget = splitBudget;
+  }
   register(name, scope, input, output, policy, handler, {requests=60,period=60} = {}) {
     if (typeof name !== 'string' || !NAME.test(name) || typeof scope !== 'string' || !NAME.test(scope) || this.#operations.has(name) || [policy, handler].some(x => typeof x !== 'function') || !Number.isSafeInteger(requests) || requests<1 || requests>10000 || !Number.isSafeInteger(period) || period<1 || period>3600) throw new TypeError('operation, schemas, policy, handler and bounded rate required');
     this.#operations.set(name, {scope, input:new Schema(input,{rootObject:true}), output:new Schema(output,{rootObject:true}), policy, handler, requests, period});
@@ -18,13 +21,22 @@ export class SecureServer {
     const response = {id: request.id, iat: now, exp: now + 60, req: await digest(wire), ok: false};
     try {
       const o = this.#operations.get(request.op);
-      if (await this.replay.admit(this.codec.service,kid,principal.subject,o ? request.op : 'unknown',this.codec.clock(),o?.requests ?? 60,o?.period ?? 60) !== true) throw new SapiError('rate_limited');
-      if (await this.replay.claim(`${this.codec.service}|${kid}|${request.id}`, request.exp, this.codec.clock()) !== true) throw new SapiError('replay');
+      const key=`${this.codec.service}|${kid}|${request.id}`;
+      if (!this.splitBudget) {
+        if (await this.replay.admit(this.codec.service,kid,principal.subject,o ? request.op : 'unknown',this.codec.clock(),o?.requests ?? 60,o?.period ?? 60) !== true) throw new SapiError('rate_limited');
+        if (await this.replay.claim(key, request.exp, this.codec.clock()) !== true) throw new SapiError('replay');
+      } else {
+        const decision=await this.replay.claimBounded(this.codec.service,principal.subject,key,request.exp,this.codec.clock());
+        if (!['accepted','replay','rate_limited'].includes(decision)) throw new Error('invalid replay decision');
+        if (decision!=='accepted') throw new SapiError(decision);
+      }
       if (!o) throw new SapiError('unknown_operation');
       if (!principal.scopes.has(o.scope)) throw new SapiError('forbidden');
       if (!o.input.validate(request.data)) throw new SapiError('invalid_input');
       if (await o.policy(principal, request.data) !== true) throw new SapiError('forbidden');
       if (!o.input.validate(request.data)) throw new SapiError('invalid_input');
+      if (this.codec.clock() >= request.exp) throw new SapiError('invalid_input');
+      if (this.splitBudget && await this.replay.admit(this.codec.service,kid,principal.subject,request.op,this.codec.clock(),o.requests,o.period) !== true) throw new SapiError('rate_limited');
       if (this.codec.clock() >= request.exp) throw new SapiError('invalid_input');
       const data = clone(await o.handler(principal, request.data));
       if (!object(data) || !o.output.validate(data) || encode(data).length > MAX_BODY - 512) throw new Error('invalid handler result');

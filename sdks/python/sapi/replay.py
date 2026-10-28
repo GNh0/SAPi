@@ -39,3 +39,30 @@ class MemoryReplayStore:
                 raise SapiError("replay_capacity")
             self.entries[key] = expiry
             return True
+
+
+class SplitBudgetMemoryReplayStore(MemoryReplayStore):
+    """Opt-in single-process policy; all authenticated attempts consume cost.
+
+    Replays consume the cost budget rather than business admission. This store
+    is neither distributed nor durable and cost-budget exhaustion remains possible.
+    """
+    def __init__(self, capacity=10000, *, cost_limit=120, cost_period=60):
+        super().__init__(capacity)
+        if type(cost_limit) is not int or not 1<=cost_limit<=10000 or type(cost_period) is not int or not 1<=cost_period<=3600:
+            raise ValueError('bounded cost policy required')
+        self.cost_limit,self.cost_period,self.costs=cost_limit,cost_period,{}
+
+    def claim_bounded(self, service, subject, key, expiry, now):
+        with self.lock:
+            self.entries={k:v for k,v in self.entries.items() if v>now}
+            self.costs={k:v for k,v in self.costs.items() if v[0]+self.cost_period>now}
+            cost_key=(service,subject)
+            start,count=self.costs.get(cost_key,(now,0))
+            if count>=self.cost_limit: return 'rate_limited'
+            if cost_key not in self.costs and len(self.costs)>=self.capacity: raise SapiError('rate_capacity')
+            self.costs[cost_key]=(start,count+1)
+            if key in self.entries: return 'replay'
+            if len(self.entries)>=self.capacity: raise SapiError('replay_capacity')
+            self.entries[key]=expiry
+            return 'accepted'

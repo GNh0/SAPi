@@ -1,14 +1,22 @@
 """A declarative application API: no request-selected SQL, URL, command or code."""
 import copy
+import hashlib
+import json
 from sapi import SecureServer,Schema
 from sapi.constants import NAME
 from sapi.egress import Egress
 
 
+def _contract_id(scope,input_schema,output_schema):
+    definition={'scope':scope,'input':input_schema,'output':output_schema}
+    return hashlib.sha256(json.dumps(definition,sort_keys=True,separators=(',',':'),ensure_ascii=True,allow_nan=False).encode()).hexdigest()
+
+
 class Application:
-    def __init__(self,codec,state,records,collections,targets=None,*,egress_ca=None):
+    def __init__(self,codec,state,records,collections,targets=None,*,egress_ca=None,enable_idempotency=False,split_budget=False):
+        if type(enable_idempotency) is not bool or (enable_idempotency and getattr(records,'idempotency_enabled',False) is not True): raise ValueError('idempotency-enabled records required')
         if type(collections) is not dict or len(collections)>64 or type(targets or {}) is not dict or len(targets or {})>64:raise ValueError("bounded application manifest required")
-        self.server = SecureServer(codec,state)
+        self.server = SecureServer(codec,state,split_budget=split_budget)
         self.records = records
         self.egress = Egress({k:{n:v for n,v in t.items() if n!="scope"} for k,t in (targets or {}).items()},ca_file=egress_ca)
         for name,value in copy.deepcopy(collections).items():
@@ -24,19 +32,34 @@ class Application:
             changed = {"type":"object","properties":{"changed":{"type":"boolean"},"records":items}}
             found = {"type":"object","properties":{"found":{"type":"boolean"},"records":items}}
             found_schema,changed_schema=Schema(found,root_object=True),Schema(changed,root_object=True)
+            operation_id={'type':'string','format':'identifier','minBytes':1,'maxBytes':64}
+            if enable_idempotency:
+                receipt_result={'type':'object','properties':{'found':{'type':'boolean'},'expired':{'type':'boolean'},'changed':{'type':'boolean'},'records':items}}
+                receipt_schema=Schema(receipt_result,root_object=True)
+                def receipt(p,d,name=name,output=receipt_schema):return records.receipt(codec.service,name,p,d,output_schema=output)
+                self.server.register(name+'_receipt',value['write_scope'],{'type':'object','properties':{'operation_id':operation_id}},receipt_result,lambda p,d:True,receipt)
             def getter(p,d,name=name,output=found_schema):return records.get(codec.service,name,p,d,output_schema=output)
             self.server.register(name+"_get",value["read_scope"],query,found,lambda p,d:True,getter)
             for kind in ("create","update","delete"):
                 fields = dict(query["properties"])
                 if kind!="create":fields["version"]=record["properties"]["version"]
                 if kind!="delete":fields["data"]=payload
-                def mutation(p,d,name=name,kind=kind,initial=initial,phases=tuple(write_phases),output=changed_schema):
-                    return records.mutate(kind,codec.service,name,p,d,initial=initial,write_phases=phases,output_schema=output)
-                self.server.register(name+"_"+kind,value["write_scope"],{"type":"object","properties":fields},changed,lambda p,d:True,mutation)
+                if enable_idempotency: fields['operation_id']=operation_id
+                input_schema={'type':'object','properties':fields,**({'optional':['operation_id']} if enable_idempotency else {})}
+                operation_name=name+'_'+kind
+                contract_id=_contract_id(value['write_scope'],input_schema,changed) if enable_idempotency else None
+                def mutation(p,d,name=name,kind=kind,initial=initial,phases=tuple(write_phases),output=changed_schema,operation_name=operation_name,contract_id=contract_id):
+                    return records.mutate(kind,codec.service,name,p,d,initial=initial,write_phases=phases,output_schema=output,**({'operation_name':operation_name,'contract_id':contract_id} if enable_idempotency else {}))
+                self.server.register(operation_name,value["write_scope"],input_schema,changed,lambda p,d:True,mutation)
             for edge,rule in transitions.items():
                 if not isinstance(edge,str) or not NAME.fullmatch(edge) or type(rule) is not dict or set(rule)!={"from","to","scope"} or any(not isinstance(v,str) or not NAME.fullmatch(v) for v in rule.values()):raise ValueError("declared workflow edge required")
-                def transition(p,d,name=name,rule=rule,initial=initial,output=changed_schema):return records.mutate("transition",codec.service,name,p,d,initial=initial,write_phases=(),transition=rule,output_schema=output)
-                self.server.register(name+"_"+edge,rule["scope"],{"type":"object","properties":{"id":record["properties"]["id"],"version":record["properties"]["version"]}},changed,lambda p,d:True,transition)
+                fields={'id':record['properties']['id'],'version':record['properties']['version']}
+                if enable_idempotency: fields['operation_id']=operation_id
+                input_schema={'type':'object','properties':fields,**({'optional':['operation_id']} if enable_idempotency else {})}
+                operation_name=name+'_'+edge
+                contract_id=_contract_id(rule['scope'],input_schema,changed) if enable_idempotency else None
+                def transition(p,d,name=name,rule=rule,initial=initial,output=changed_schema,operation_name=operation_name,contract_id=contract_id):return records.mutate('transition',codec.service,name,p,d,initial=initial,write_phases=(),transition=rule,output_schema=output,**({'operation_name':operation_name,'contract_id':contract_id} if enable_idempotency else {}))
+                self.server.register(operation_name,rule['scope'],input_schema,changed,lambda p,d:True,transition)
         for name,target in (targets or {}).items():
             if len(name)>48 or set(target)!={"origin","path","input","output","scope"}:raise ValueError("declared egress capability required")
             def fetch(p,d,name=name):return self.egress.fetch(name,d)

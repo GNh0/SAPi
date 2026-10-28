@@ -30,6 +30,24 @@ jobs:
           java-version: '11'
       - name: Prepare isolated dependencies
         run: python tools/bootstrap.py --work-dir "${{ runner.temp }}/sapi-validation"
+      - name: Verify local SDK comparison
+        run: |
+          python -c "from pathlib import Path; (Path.cwd().parent / 'evidence').mkdir(exist_ok=True)"
+          node tests/test_local_comparison.mjs
+      - name: Verify receipt contract and bounded API comparison
+        timeout-minutes: 2
+        run: |
+          node --experimental-sqlite tests/test_receipt_contract.mjs
+          node --experimental-sqlite tests/test_contract_comparison.mjs
+      - name: Verify bounded seeded SDK corpus
+        timeout-minutes: 2
+        shell: bash
+        run: |
+          set -e
+          node tests/test_seeded_corpus_oracle.mjs
+          node tests/run_seeded_corpus.mjs --selftest
+          SAPI_CORPUS_SEED=1028 SAPI_CORPUS_COUNT=128 node tests/run_seeded_corpus.mjs
+          SAPI_CORPUS_SEED=42 SAPI_CORPUS_COUNT=128 node tests/run_seeded_corpus.mjs
       - name: Verify every registered implementation pair
         run: python tools/verify.py --work-dir "${{ runner.temp }}/sapi-validation"
       - name: Verify durable state, key lifecycle and mTLS adapters

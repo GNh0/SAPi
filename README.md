@@ -1,79 +1,70 @@
 # SAPi
 
-API 메시지와 처리 계층에 보안을 적용하는 규격, SDK, 애플리케이션 서비스입니다. HTTP와 HTTPS에서 요청·응답을 암호화하고 인증된 주체를 기준으로 입력·권한·데이터 접근·업무 상태를 검사합니다.
+English | [한국어](README.ko.md)
 
-- AES-256-GCM 메시지 암호화와 HKDF-SHA-256 요청·응답 키 분리
-- 필수 입력·출력 스키마, scope, 객체 권한 정책과 작업 목록
-- 소유자 조건과 값 바인딩을 적용하는 SQL 도구
-- 선언형 데이터 API의 버전·상태 전이 검사와 출력 실패 시 DB 롤백
-- 등록된 HTTPS 목적지, DNS 주소 검증·고정, 리다이렉트 금지와 외부 응답 검사
-- SQLite·PostgreSQL 영속 재전송 저장소와 공유 사용량 관리
-- mTLS 기반 키 발급·자동/수동 회전·폐기·루트 키 교체
-- 상태 변조·과거 상태 복원 탐지와 검증된 감사 기록
-- .NET, Java, Python, JavaScript SDK 및 ASP.NET·ASP.NET Core 연결 계층
+SAPi is an experimental SAPI/0.1 message protocol and SDK for authenticated, encrypted API requests. It uses AES-256-GCM and HKDF-SHA-256, with operation schemas, scopes, policy checks and replay protection. It does not replace HTTPS or an application's authorization policy. The current packages are alpha releases and have not received an independent security audit.
 
-메시지 규격은 언어·프레임워크와 독립적입니다. 각 SDK는 동일한 메시지와 상태 관리 API를 사용합니다.
+## Install and try
 
-## 지원 환경
+The following local example uses Node.js 24 and a checkout of this repository. In a separate empty project directory, install the JavaScript SDK from the checkout (replace the path):
 
-| 구성 | 최소 환경 |
+```sh
+npm install /absolute/path/to/SAPi/sdks/javascript
+```
+
+Save this as `example.mjs` in that project and run `node example.mjs`:
+
+```javascript
+import {Codec, SecureServer, StaticKeyProvider} from 'sapi-protocol';
+
+const keys = new StaticKeyProvider({demo: {
+  master: crypto.getRandomValues(new Uint8Array(32)),
+  subject: 'client1', scopes: ['echo']
+}});
+const codec = new Codec('demo', keys);
+const server = new SecureServer(codec);
+const schema = {type: 'object', properties: {message: {type: 'string', maxBytes: 128}}};
+server.register('echo', 'echo', schema, schema,
+  principal => principal.subject === 'client1',
+  (_principal, data) => ({message: data.message}));
+const request = await codec.request('demo', 'echo', {message: 'hello'});
+const reply = await server.handle(request.wire);
+console.log(await codec.acceptResponse(request, reply));
+```
+
+The response contains `ok: true` and `data.message: 'hello'`. This example keeps its random key and replay state in one process; it is not a deployment configuration. See [SDK usage](docs/USAGE.md) for packages and state-backed examples in all four languages.
+
+## Supported components
+
+| Component | Target |
 | --- | --- |
-| .NET SDK | .NET Framework 4.6.2, .NET Standard 2.0, .NET 6 |
-| ASP.NET 어댑터 | .NET Framework 4.6.2 / ASP.NET Core 6 |
-| Java SDK | Java 8, AES-256 활성화 |
-| Python SDK | Python 3.9.2 |
-| JavaScript SDK | Node.js 16 / Web Crypto를 제공하는 브라우저 |
-| 상태·애플리케이션 서비스 | Python 3.10 |
+| .NET SDK and ASP.NET adapters | .NET Framework 4.6.2, .NET Standard 2.0, .NET 6; ASP.NET Core 6 |
+| Java SDK | Java 8 with AES-256 enabled |
+| Python SDK | Python 3.9.2 or later |
+| JavaScript SDK | Node.js 16 or later; browser Web Crypto in a secure context |
+| State and application services | Python 3.10 or later |
 
-구버전 설정과 설치 예시는 [SDK 사용법](docs/USAGE.md)에 있습니다.
+The core JavaScript protocol modules use Web Crypto. Browser execution is not covered by the current automated tests. Runtime compatibility does not establish the security of a complete deployment.
 
-## 시작하기
+## Security and limits
 
-패키지 버전은 `0.1.0-alpha.4`이며, 메시지 규격은 `SAPI/0.1`입니다.
-[애플리케이션 서비스](docs/APPLICATION.md), [SDK 사용법](docs/USAGE.md), [상태 서비스 운영](docs/STATE.md)을 제공합니다.
+The state service provides key lifecycle, replay and shared admission state; the application service provides declarative operations, owned SQL and constrained outbound requests. A multi-process deployment needs appropriately shared state and trusted key provisioning. The in-memory stores in the example do not provide those guarantees.
 
-```text
-sapi-state init --directory /secure/sapi/operator --anchor-directory /secure/sapi-checkpoints --service orders --subject client-1
-sapi-application init --directory /secure/sapi/application --state-config /secure/sapi/operator/config.json --service orders
-sapi-state serve --config /secure/sapi/operator/config.json
+TLS certificate provisioning and trust configuration remain the operator's responsibility. The GNho live-traffic integration and production Worker/D1 behavior have not been comprehensively validated. Local synthetic results are not evidence of live traffic coverage. Read [security limits](spec/SECURITY.md), [state operations](docs/STATE.md), and [application service](docs/APPLICATION.md) before deployment.
+
+The JavaScript SDK also provides an optional [D1 replay and admission adapter](docs/d1-replay.md) through `sapi-protocol/state-d1`. It requires explicit exclusive ownership of a dedicated replay database and separate administrator initialization; ordinary requests do not run migrations or register policy. The default in-memory store remains process-local. The D1 adapter has subject bounds and operational limitations described in that document; local tests do not establish distributed production behavior.
+
+## Development and verification
+
+From the repository root, the local Python unit tests and the isolated JavaScript Web Crypto test can be run with:
+
+```sh
+python -m unittest discover -s tests -p 'test_*.py'
+node --experimental-vm-modules tests/test_worker_inspector.mjs
 ```
 
-다른 터미널에서 클라이언트 키를 발급합니다.
+The JavaScript test is a Node VM simulation, not a Cloudflare Worker or D1 test. For dependencies, cross-language conformance, package builds and broader checks, see [validation](docs/VALIDATION.md). See also the [protocol specification](spec/PROTOCOL.md), [architecture](docs/ARCHITECTURE.md), [migration example](docs/OPT_IN_MIGRATION.md), and [security coverage](docs/SECURITY_COVERAGE.md).
 
-```text
-sapi-state issue --config /secure/sapi/operator/config.json --service orders --subject client-1 --scope orders_read --scope orders_write
-sapi-application serve --config /secure/sapi/application/config.json
-```
+## License
 
-SDK의 `StateClient`를 연결하면 발급된 키, 재전송 저장소, 주체별 호출 한도를 공유합니다. 서버 작업에는 입력·출력 스키마, 권한 정책, 업무 함수를 함께 등록합니다.
-
-## 구성
-
-| 경로 | 내용 |
-| --- | --- |
-| [spec/](spec/PROTOCOL.md) | 메시지 규격과 새 구현 지침 |
-| [services/state/](services/state/) | mTLS 상태 서비스, 영속 저장소, 운영 CLI |
-| [sdks/](sdks/) | 언어별 패키지와 전송·상태 어댑터 |
-| [docs/](docs/ARCHITECTURE.md) | 구조, 사용법, 운영, 검증 |
-| [tests/](tests/DRIVER_CONTRACT.md) | 공통 벡터와 상호운용·보안 회귀 검사 |
-
-## 빌드와 검증
-
-Python 3.10+, .NET SDK 8+, Node.js 20+, JDK 11+ 환경에서 빌드합니다. 패키지 소비 검사는 .NET 6·8 런타임을 함께 사용합니다.
-
-```text
-python tools/bootstrap.py --work-dir /absolute/scratch/sapi
-python tools/verify.py --work-dir /absolute/scratch/sapi
-python tools/verify_state.py --work-dir /absolute/scratch/sapi
-python tools/verify_security.py --work-dir /absolute/scratch/sapi
-python tools/verify_application.py --work-dir /absolute/scratch/sapi
-python tools/audit_dependencies.py --work-dir /absolute/scratch/sapi
-python tools/package.py --work-dir /absolute/scratch/sapi --output-dir /absolute/path/dist
-python tools/smoke_packages.py --work-dir /absolute/scratch/sapi --package-dir /absolute/path/dist
-```
-
-NuGet, Python wheel/sdist, npm tarball, Java JAR/POM을 생성합니다. 패키지 설치 경로와 검증 기록은 [USAGE](docs/USAGE.md), [VALIDATION](docs/VALIDATION.md)에 있습니다.
-
-[애플리케이션 서비스](docs/APPLICATION.md)는 선언한 데이터와 업무 규칙으로 API를 실행합니다. 패키징은 메시지·상태·처리 보안·애플리케이션의 네 통과 보고서와 현재 소스 해시를 각각 확인합니다. [방어 범위](docs/SECURITY_COVERAGE.md)에 구현과 검증을 정리합니다.
-
-공유 키 기반 인증의 신뢰 조건, HTTP에서 노출되는 메타데이터, 키 유출과 복구의 범위는 [보안 모델](spec/SECURITY.md)을 확인하세요. [보안 검토 기록](docs/SECURITY_REVIEW.md)은 발견 사항과 수정 검증을 정리합니다.
+SAPi source is licensed under [Apache License 2.0](LICENSE). Dependencies retain their own licenses; consult their license terms when distributing them.

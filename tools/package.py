@@ -8,6 +8,7 @@ from pathlib import Path
 import shutil
 import subprocess
 import sys
+import tarfile
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -19,6 +20,17 @@ def run(command, env, cwd=ROOT):
     if result.returncode:
         raise RuntimeError(f"package command failed: {command}\n{result.stdout}\n{result.stderr}")
     return result.stdout + result.stderr
+
+
+def verify_license_archives(out, zip_names, tar_names, license_bytes):
+    for name in zip_names:
+        with zipfile.ZipFile(out / name) as archive:
+            matches = [n for n in archive.namelist() if n == "LICENSE" or n.endswith("/LICENSE")]
+            if not any(archive.read(n) == license_bytes for n in matches): raise RuntimeError(f"missing exact license: {name}")
+    for name in tar_names:
+        with tarfile.open(out / name, "r:gz") as archive:
+            matches = [m for m in archive.getmembers() if m.isfile() and m.name.endswith("/LICENSE")]
+            if not any(archive.extractfile(m).read() == license_bytes for m in matches): raise RuntimeError(f"missing exact license: {name}")
 
 
 def main():
@@ -38,6 +50,7 @@ def main():
     for profile in profiles.values():
         if profile["failures"] or profile["passed"] != profile["total"]:raise RuntimeError("passing application security verification required before packaging")
     source_snapshot = source_hashes(ROOT)
+    license_bytes = (ROOT / "LICENSE").read_bytes()
     for verified in (verification,state,*profiles.values()):
         if verified["source_sha256"] != source_snapshot:
             raise RuntimeError("source tree changed since verification")
@@ -50,10 +63,13 @@ def main():
     env["DOTNET_CLI_TELEMETRY_OPTOUT"] = "1"
     logs = []
     shutil.copytree(ROOT / "sdks" / "python", stage / "python", ignore=shutil.ignore_patterns("__pycache__", "*.egg-info", "build"))
+    shutil.copyfile(ROOT / "LICENSE", stage / "python" / "LICENSE")
     logs.append(run([sys.executable, "-m", "build", "--no-isolation", "--outdir", str(out), str(stage / "python")], env))
     shutil.copytree(ROOT / "services/state", stage / "state", ignore=shutil.ignore_patterns("__pycache__", "*.egg-info", "build"))
+    shutil.copyfile(ROOT / "LICENSE", stage / "state" / "LICENSE")
     logs.append(run([sys.executable, "-m", "build", "--no-isolation", "--outdir", str(out), str(stage / "state")], env))
     shutil.copytree(ROOT / "services/application", stage / "application", ignore=shutil.ignore_patterns("__pycache__", "*.egg-info", "build"))
+    shutil.copyfile(ROOT / "LICENSE", stage / "application" / "LICENSE")
     logs.append(run([sys.executable, "-m", "build", "--no-isolation", "--outdir", str(out), str(stage / "application")], env))
     for project in ("SApi.Protocol", "SApi.AspNetCore", "SApi.AspNet"):
         logs.append(run(["dotnet", "pack", str(ROOT / "sdks" / "dotnet" / project / f"{project}.csproj"),
@@ -63,11 +79,14 @@ def main():
     if not npm: raise RuntimeError("npm required")
     # Older npm bundled with Node 16 does not support --pack-destination.
     # Pack the source folder from the scratch directory, then copy the archive.
-    logs.append(run([npm, "pack", str(ROOT / "sdks" / "javascript")], env, stage))
+    shutil.copytree(ROOT / "sdks" / "javascript", stage / "javascript")
+    shutil.copyfile(ROOT / "LICENSE", stage / "javascript" / "LICENSE")
+    logs.append(run([npm, "pack", str(stage / "javascript")], env, stage))
     shutil.copyfile(stage / "sapi-protocol-0.1.0-alpha.4.tgz", out / "sapi-protocol-0.1.0-alpha.4.tgz")
     base = "sapi-protocol-0.1.0-alpha.4"
     pom_dir = stage / "java" / "META-INF" / "maven" / "io.github.gnh0.sapi" / "sapi-protocol"
     pom_dir.mkdir(parents=True)
+    shutil.copyfile(ROOT / "LICENSE", stage / "java" / "META-INF" / "LICENSE")
     shutil.copyfile(ROOT / "sdks" / "java" / "pom.xml", pom_dir / "pom.xml")
     shutil.copyfile(ROOT / "sdks" / "java" / "pom.xml", out / (base + ".pom"))
     logs.append(run(["jar", "cf", str(out / (base + ".jar")), "-C", str(work / "java"),
@@ -82,12 +101,13 @@ def main():
     for package, framework in (("SApi.Protocol","net462"),("SApi.Protocol","netstandard2.0"),("SApi.Protocol","net6.0"),("SApi.AspNetCore","net6.0")):
         with zipfile.ZipFile(out / (package + ".0.1.0-alpha.4.nupkg")) as archive:
             if f"lib/{framework}/{package}.dll" not in archive.namelist(): raise RuntimeError("missing compatibility assembly")
+    verify_license_archives(out, expected, ("sapi_protocol-0.1.0a4.tar.gz", "sapi_state-0.1.0a4.tar.gz", "sapi_application-0.1.0a4.tar.gz", base + ".tgz"), license_bytes)
     hashes = {path.name: hashlib.sha256(path.read_bytes()).hexdigest() for path in sorted(out.iterdir())
               if path.suffix in (".whl", ".gz", ".nupkg", ".tgz", ".jar", ".pom")}
-    if source_hashes(ROOT) != source_snapshot:
+    if source_hashes(ROOT) != source_snapshot or (ROOT / "LICENSE").read_bytes() != license_bytes:
         raise RuntimeError("source tree changed during packaging")
     report = {"utc": datetime.datetime.now(datetime.timezone.utc).isoformat(),
-              "source_sha256": source_snapshot,
+              "source_sha256": source_snapshot, "license_sha256": hashlib.sha256(license_bytes).hexdigest(),
               "verification_sha256": hashlib.sha256(report_path.read_bytes()).hexdigest(), "packages_sha256": hashes,
               "state_verification_sha256": hashlib.sha256(state_path.read_bytes()).hexdigest(),
               "security_verification_sha256": hashlib.sha256((work / "security-verification.json").read_bytes()).hexdigest(),
