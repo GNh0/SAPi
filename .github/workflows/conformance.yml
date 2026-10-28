@@ -31,7 +31,9 @@ jobs:
       - name: Prepare isolated dependencies
         run: python tools/bootstrap.py --work-dir "${{ runner.temp }}/sapi-validation"
       - name: Verify local SDK comparison
-        run: node tests/test_local_comparison.mjs
+        run: |
+          python -c "from pathlib import Path; (Path.cwd().parent / 'evidence').mkdir(exist_ok=True)"
+          node tests/test_local_comparison.mjs
       - name: Verify every registered implementation pair
         run: python tools/verify.py --work-dir "${{ runner.temp }}/sapi-validation"
       - name: Verify durable state, key lifecycle and mTLS adapters
