@@ -57,6 +57,8 @@ class SecureServer:
                 raise SapiError("invalid_input")
             if bounded is not None and self.replay.admit(self.codec.service,kid,principal.subject,request["op"],self.codec.clock(),operation[5],operation[6]) is not True:
                 raise SapiError("rate_limited")
+            if self.codec.clock() >= request["exp"]:
+                raise SapiError("invalid_input")
             result = handler(principal, request["data"])
             if not isinstance(result, dict) or not output_schema.validate(result):
                 raise ValueError("handler result must be an object")

@@ -3,7 +3,7 @@ import {test} from 'node:test';
 import {createLocalComparison} from '../examples/shadow/local-comparison.mjs';
 import {runMixed,fixturePlan} from '../examples/shadow/mixed-runner.mjs';
 import {atomicReplayAdapter} from '../examples/shadow/atomic-replay-contract.mjs';
-import {Codec,SecureServer,StaticKeyProvider} from '../sdks/javascript/src/index.js';
+import {Codec,SecureServer,StaticKeyProvider,MemoryReplayStore,SplitBudgetMemoryReplayStore} from '../sdks/javascript/src/index.js';
 import {createEvidence,readEvidenceSummary,stateDigest} from '../examples/shadow/sqlite-evidence.mjs';
 import {createProcessComparison,parseFixtureOutput,terminateVerifiedChild} from '../examples/shadow/process-comparison.mjs';
 import {validateArtifactRoot,validateArtifactFile} from '../examples/shadow/artifact-path.mjs';
@@ -11,6 +11,108 @@ import {DatabaseSync} from 'node:sqlite';
 import {unlinkSync,readdirSync} from 'node:fs';
 import {resolve} from 'node:path';
 const envelope=(overrides={})=>({correlationId:crypto.randomUUID(),operation:'put',identity:'allowed',data:{id:'one',value:'hello'},...overrides});
+
+test('opt-in split budget preserves valid requests after replay while bounding total cost',async()=>{
+  const master=crypto.getRandomValues(new Uint8Array(32));
+  const provider=new StaticKeyProvider({a:{master,subject:'alice',scopes:['read']},b:{master,subject:'alice',scopes:['read']},c:{master,subject:'bob',scopes:['read']}});
+  const codec=new Codec('demo',provider), schema={type:'object',properties:{id:{type:'string',maxBytes:32}}};
+  const store=new SplitBudgetMemoryReplayStore(), server=new SecureServer(codec,store,{splitBudget:true});
+  let calls=0; server.register('get','read',schema,schema,()=>true,(_p,d)=>{calls++;return d;});
+  const request=async kid=>(await codec.request(kid,'get',{id:'one'})).wire;
+  const send=async wire=>(await codec.open(await server.handle(wire),'res')).payload;
+  const original=await request('a'); assert.equal((await send(original)).ok,true);
+  for(let i=0;i<59;i++) assert.equal((await send(original)).error,'replay');
+  assert.equal((await send(await request('b'))).ok,true);
+  for(let i=0;i<59;i++) assert.equal((await send(original)).error,'replay');
+  assert.equal((await send(await request('b'))).error,'rate_limited');
+  assert.equal((await send(await request('c'))).ok,true);
+  assert.equal(calls,3);
+  assert.throws(()=>new SecureServer(codec,new MemoryReplayStore(),{splitBudget:true}),/split-budget/);
+});
+
+test('split budget enforces business limits and one winner for concurrent duplicate',async()=>{
+  const master=crypto.getRandomValues(new Uint8Array(32));
+  const provider=new StaticKeyProvider({a:{master,subject:'alice',scopes:['read']}});
+  const codec=new Codec('demo',provider), store=new SplitBudgetMemoryReplayStore();
+  const server=new SecureServer(codec,store,{splitBudget:true});
+  const schema={type:'object',properties:{id:{type:'string',maxBytes:32}}}; let calls=0;
+  server.register('get','read',schema,schema,()=>true,(_p,d)=>{calls++;return d;},{requests:2,period:60});
+  const req=async()=>(await codec.request('a','get',{id:'one'})).wire;
+  const send=async wire=>(await codec.open(await server.handle(wire),'res')).payload;
+  const wire=await req(); const both=await Promise.all([send(wire),send(wire)]);
+  assert.equal(both.filter(x=>x.ok).length,1); assert.equal(both.filter(x=>x.error==='replay').length,1);
+  assert.equal((await send(await req())).ok,true);
+  assert.equal((await send(await req())).error,'rate_limited'); assert.equal(calls,2);
+  const bad=new SecureServer(codec,{claimBounded:async()=>true,admit:async()=>true},{splitBudget:true});
+  bad.register('get','read',schema,schema,()=>true,()=>{throw Error('must not execute');});
+  assert.equal((await codec.open(await bad.handle(await req()),'res')).payload.error,'internal_error');
+});
+
+test('default admission remains unchanged and concurrent split cost is bounded',async()=>{
+  const master=crypto.getRandomValues(new Uint8Array(32));
+  const provider=new StaticKeyProvider({a:{master,subject:'alice',scopes:['read']}});
+  const codec=new Codec('demo',provider), schema={type:'object',properties:{id:{type:'string',maxBytes:32}}};
+  const setup=store=>{const s=new SecureServer(codec,store,store instanceof SplitBudgetMemoryReplayStore?{splitBudget:true}:{});s.register('get','read',schema,schema,()=>true,(_p,d)=>d);return s;};
+  const send=async(s,w)=>(await codec.open(await s.handle(w),'res')).payload;
+  const make=async data=>(await codec.request('a','get',data)).wire;
+  const legacy=setup(new MemoryReplayStore()), wire=await make({id:'one'});
+  assert.equal((await send(legacy,wire)).ok,true);
+  for(let i=0;i<59;i++) assert.equal((await send(legacy,wire)).error,'replay');
+  assert.equal((await send(legacy,await make({id:'two'}))).error,'rate_limited');
+  const split=setup(new SplitBudgetMemoryReplayStore(10000,{costLimit:3}));
+  assert.equal((await send(split,await make({id:7}))).error,'invalid_input');
+  const wires=await Promise.all([make({id:'a'}),make({id:'b'}),make({id:'c'})]);
+  const outcomes=await Promise.all(wires.map(w=>send(split,w)));
+  assert.equal(outcomes.filter(x=>x.ok).length,2);
+  assert.equal(outcomes.filter(x=>x.error==='rate_limited').length,1);
+});
+
+test('atomic adapter exposes only explicitly supported split decisions to SDK',async()=>{
+  const master=crypto.getRandomValues(new Uint8Array(32));
+  const provider=new StaticKeyProvider({a:{master,subject:'alice',scopes:['read']}});
+  const codec=new Codec('demo',provider), schema={type:'object',properties:{id:{type:'string',maxBytes:32}}};
+  const backend=new SplitBudgetMemoryReplayStore();
+  assert.throws(()=>atomicReplayAdapter(new MemoryReplayStore(),{splitBudget:true}),/split-budget/);
+  const wrapped=atomicReplayAdapter(backend,{splitBudget:true});
+  const server=new SecureServer(codec,wrapped,{splitBudget:true}); let calls=0;
+  server.register('get','read',schema,schema,()=>true,(_p,d)=>{calls++;return d;});
+  const wire=(await codec.request('a','get',{id:'one'})).wire;
+  const send=async w=>(await codec.open(await server.handle(w),'res')).payload;
+  const results=await Promise.all([send(wire),send(wire)]);
+  assert.equal(results.filter(x=>x.ok).length,1);assert.equal(results.filter(x=>x.error==='replay').length,1);assert.equal(calls,1);
+  const invalid=atomicReplayAdapter({claim:()=>true,admit:()=>true,claimBounded:()=>true},{splitBudget:true});
+  const rejecting=new SecureServer(codec,invalid,{splitBudget:true});
+  rejecting.register('get','read',schema,schema,()=>true,()=>{throw Error('unexpected handler');});
+  const fresh=(await codec.request('a','get',{id:'two'})).wire;
+  assert.equal((await codec.open(await rejecting.handle(fresh),'res')).payload.error,'internal_error');
+});
+
+test('async replay claim is awaited and requires a boolean',async()=>{
+  const master=crypto.getRandomValues(new Uint8Array(32));
+  const provider=new StaticKeyProvider({a:{master,subject:'alice',scopes:['read']}});
+  const codec=new Codec('demo',provider), schema={type:'object',properties:{id:{type:'string',maxBytes:32}}};
+  class AsyncClaim extends SplitBudgetMemoryReplayStore { async claim(...args) {return super.claim(...args);} }
+  const server=new SecureServer(codec,new AsyncClaim(),{splitBudget:true});let calls=0;
+  server.register('get','read',schema,schema,()=>true,(_p,d)=>{calls++;return d;});
+  const wire=(await codec.request('a','get',{id:'one'})).wire;
+  const send=async()=>(await codec.open(await server.handle(wire),'res')).payload;
+  const results=await Promise.all([send(),send()]);
+  assert.equal(results.filter(x=>x.ok).length,1);assert.equal(results.filter(x=>x.error==='replay').length,1);assert.equal(calls,1);
+  class InvalidClaim extends SplitBudgetMemoryReplayStore { async claim(){return 'yes';} }
+  await assert.rejects(new InvalidClaim().claimBounded('demo','alice','x',1100,1000),/boolean/);
+});
+
+test('request expiring during split admission never reaches handler',async()=>{
+  let now=1000;const master=crypto.getRandomValues(new Uint8Array(32));
+  const provider=new StaticKeyProvider({a:{master,subject:'alice',scopes:['read']}});
+  const codec=new Codec('demo',provider,()=>now), schema={type:'object',properties:{id:{type:'string',maxBytes:32}}};
+  class SlowAdmission extends SplitBudgetMemoryReplayStore { async admit(...args){const allowed=super.admit(...args);now=1001;return allowed;} }
+  const server=new SecureServer(codec,new SlowAdmission(),{splitBudget:true});let calls=0;
+  server.register('get','read',schema,schema,()=>true,(_p,d)=>{calls++;return d;});
+  const wire=await codec.seal('a','req',{id:'0'.repeat(32),iat:1000,exp:1001,op:'get',data:{id:'one'}});
+  const payload=(await codec.open(await server.handle(wire),'res')).payload;
+  assert.equal(payload.error,'invalid_input');assert.equal(calls,0);
+});
 async function recorded(options, inspect=()=>{}) {
   const dir=validateArtifactRoot();
   const path=resolve(dir,`sapi-test-${crypto.randomUUID()}.sqlite`), evidence=createEvidence(path);

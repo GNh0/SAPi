@@ -24,7 +24,7 @@ const adapter=await moduleFor(pathToFileURL(path.join(root,'examples/shadow/atom
 await adapter.link((name,parent)=>moduleFor(new URL(name,parent.identifier).href));
 await adapter.evaluate();ctx.Atomic=adapter.namespace.atomicReplayAdapter;
 const sdk=(await cache.get(pathToFileURL(path.join(root,'sdks/javascript/src/index.js')).href)).namespace;
-ctx.Codec=sdk.Codec;ctx.StaticKeyProvider=sdk.StaticKeyProvider;ctx.MemoryReplayStore=sdk.MemoryReplayStore;ctx.SecureServer=sdk.SecureServer;
+ctx.Codec=sdk.Codec;ctx.StaticKeyProvider=sdk.StaticKeyProvider;ctx.MemoryReplayStore=sdk.MemoryReplayStore;ctx.SplitBudgetMemoryReplayStore=sdk.SplitBudgetMemoryReplayStore;ctx.SecureServer=sdk.SecureServer;
 const test=new vm.Script(`(async()=>{
   if (typeof process !== 'undefined' || typeof fetch !== 'undefined') throw Error('non-worker global');
   const master=crypto.getRandomValues(new Uint8Array(32));
@@ -60,6 +60,13 @@ const test=new vm.Script(`(async()=>{
   const failure=await codec.request('test','orders_get',{id:'fixture'});
   const failedPayload=(await codec.open(await failing.handle(failure.wire),'res')).payload;
   if(failedPayload.ok||failedPayload.error!=='internal_error'||calls!==1) throw Error('backend failure did not fail closed');
+  const bounded=new SecureServer(new Codec('demo',provider),new SplitBudgetMemoryReplayStore(),{splitBudget:true});
+  bounded.register('orders_get','orders_read',schema,schema,()=>true,(_p,d)=>d);
+  const once=(await codec.request('test','orders_get',{id:'fixture'})).wire;
+  const read=async wire=>(await codec.open(await bounded.handle(wire),'res')).payload;
+  if(!(await read(once)).ok) throw Error('valid request rejected');
+  for(let i=0;i<59;i++) if((await read(once)).error!=='replay') throw Error('replay not detected');
+  if(!(await read((await codec.request('test','orders_get',{id:'fixture'})).wire)).ok) throw Error('replay exhausted business budget');
   console.log('isolated WebCrypto SDK: valid, replay, independent/shared stores, tamper and bounds passed');
 })()`);
 await test.runInContext(ctx);

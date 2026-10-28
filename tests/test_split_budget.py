@@ -46,6 +46,22 @@ class SplitBudgetTests(unittest.TestCase):
         self.assertEqual(sum(r.get('error')=='replay' for r in results),19)
         self.assertEqual(calls,['once'])
 
+    def test_expiry_during_admission_never_reaches_handler(self):
+        now=[1000]
+        class SlowAdmission(SplitBudgetMemoryReplayStore):
+            def admit(self,*args):
+                allowed=super().admit(*args)
+                now[0]=1001
+                return allowed
+        codec=Codec('demo',{'one':KeyRecord(b'a'*32,'alice',frozenset({'write'}))},clock=lambda:now[0])
+        calls=[]
+        server=SecureServer(codec,SlowAdmission(),split_budget=True)
+        server.register('put','write',SCHEMA,SCHEMA,lambda p,d:True,lambda p,d:(calls.append(d) or d))
+        wire=codec.seal('one','req',{'id':'0'*32,'iat':1000,'exp':1001,'op':'put','data':{'value':'ok'}})
+        response=codec.open(server.handle(wire),'res')[1]
+        self.assertEqual(response['error'],'invalid_input')
+        self.assertEqual(calls,[])
+
     def test_default_store_preserves_existing_budget_order(self):
         codec,invoke,calls=self.setup_server(MemoryReplayStore())
         first=codec.request('one','put',{'value':'one'})

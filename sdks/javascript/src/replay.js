@@ -24,3 +24,27 @@ export class MemoryReplayStore {
     return true;
   }
 }
+
+// Opt-in, single-isolate prototype. It is neither durable nor distributed.
+// An overridden asynchronous claim must itself provide atomic duplicate reservation.
+export class SplitBudgetMemoryReplayStore extends MemoryReplayStore {
+  #costs = new Map();
+  #costLimit;
+  #costPeriod;
+  constructor(capacity=10000, {costLimit=120,costPeriod=60}={}) {
+    super(capacity);
+    if (!Number.isSafeInteger(costLimit) || costLimit<1 || costLimit>10000 || !Number.isSafeInteger(costPeriod) || costPeriod<1 || costPeriod>3600) throw new TypeError('bounded cost policy required');
+    this.#costLimit=costLimit; this.#costPeriod=costPeriod;
+  }
+  async claimBounded(service,subject,key,expiry,now) {
+    for (const [k,[start]] of this.#costs) if (start+this.#costPeriod<=now) this.#costs.delete(k);
+    const costKey=JSON.stringify([service,subject]);
+    const [start,count]=this.#costs.get(costKey) ?? [now,0];
+    if (count>=this.#costLimit) return 'rate_limited';
+    if (!this.#costs.has(costKey) && this.#costs.size>=this.capacity) throw new SapiError('rate_capacity');
+    this.#costs.set(costKey,[start,count+1]);
+    const claimed=await this.claim(key,expiry,now);
+    if (claimed !== true && claimed !== false) throw new TypeError('claim must return boolean');
+    return claimed ? 'accepted' : 'replay';
+  }
+}
